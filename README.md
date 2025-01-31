@@ -8,6 +8,47 @@ Agentic Lab is a multi-agent system designed to automate scientific research and
 - **Multi-Agent Collaboration**: Includes browsing, research, coding, execution, reviewing, and critique agents.
 - **Iterative Improvement**: Feedback-driven iterative refinement to enhance outputs.
 
+## Types of Agents
+
+The system consists of multiple AI agents that collaborate to execute research tasks.
+
+### **1. Principal Investigator Agent (PI Agent)**
+- The **main orchestrator** that coordinates all the other agents.
+- Ensures that research and code generation go through **multiple rounds of refinement**.
+- Integrates feedback from **Critic Agents**.
+
+### **2. Browsing Agent**
+- Searches for **reliable sources** related to the research topic.
+- Gathers information from **PubMed, arXiv, and other credible sources**.
+- Summarizes the gathered information for **downstream agents**.
+
+### **3. Research Agent**
+- Drafts an **initial research document** based on gathered sources.
+- Refines and improves the document using feedback from the **Critic Agent**.
+- Ensures the research is **structured, comprehensive, and scientifically accurate**.
+
+### **4. Code Writer Agent**
+- Generates **Python code** based on the research findings.
+- Ensures that code includes **detailed comments explaining each step**.
+- Improves code iteratively based on feedback from **Code Reviewer Agent** and **Critic Agent**.
+
+### **5. Code Executor Agent**
+- Runs the **generated Python code** and captures execution results.
+- Detects **missing dependencies** and installs required packages automatically.
+- Handles **execution errors** and passes output to the **Critic Agent** for review.
+
+### **6. Code Reviewer Agent**
+- Evaluates the **generated code** and its execution results.
+- Suggests **improvements for efficiency, readability, and correctness**.
+- Provides **actionable feedback** for the **Code Writer Agent**.
+
+### **7. Critic Agent**
+- Reviews both the **research document** and the **generated code**.
+- Identifies **gaps, errors, and areas for improvement**.
+- Summarizes feedback for the **PI Agent** to guide iterative improvements.
+
+Later we will add the capability for the agentic system to create custom agents on the fly instead of them being hard coded
+
 ---
 
 ## **Installation and Setup**
