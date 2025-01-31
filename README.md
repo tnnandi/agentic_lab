@@ -1,4 +1,4 @@
-# Agentic Lab: AI Agent Driven Research and Code Generation
+# Agentic Lab: AI Agent Driven Scientific Research Lab
 
 Agentic Lab is a multi-agent system designed to automate scientific research and code generation. It orchestrates a **Principal Investigator Agent (PI Agent)** that interacts with multiple specialized agents to conduct literature reviews, generate research reports, write and execute code, and iteratively refine outputs based on feedback from the user as well as a critic agent.
 
