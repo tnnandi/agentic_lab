@@ -31,6 +31,12 @@ from agents import (
 )
 import config
 import utils
+import argparse
+
+# Aagument parser for topic input
+parser = argparse.ArgumentParser(description="Run Agentic Lab with a specified research topic.")
+parser.add_argument("--topic", type=str, required=True, help="Specify the research topic.")
+args = parser.parse_args()
 
 # initialize agents
 browsing_agent = BrowsingAgent()
@@ -51,11 +57,15 @@ pi_agent = PrincipalInvestigatorAgent(
     verbose=True,
 )
 
-topic = "Polygenic risk score calculation using publicly available GWAS and genotype data"
-
+# topic = "Polygenic risk score calculation using publicly available GWAS and genotype data"
+topic = args.topic
 finalized = False
 
 while not finalized:
     report, code, finalized = pi_agent.coordinate(topic)
-    utils.save_output(report, code, pi_agent.iteration) # save conversations and outputs for each round of iteration
+
+    # ensure execution_result is passed correctly to be consistent with the other calls
+    execution_result = "Success" if finalized else "Failed"
+
+    utils.save_output(report, code, execution_result, pi_agent.iteration) # save conversations and outputs for each round of iteration
 
