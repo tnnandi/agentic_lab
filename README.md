@@ -75,6 +75,12 @@ git clone https://github.com/tnnandi/agentic_lab.git
 cd agentic_lab
 ```
 
+### **Create an Ollama server and an inference endpoint for the LLM**
+```bash
+ollama serve &
+(one time only for the initial pull) ollama pull <model_name> [e.g., ollama pull deepseek-r1:671b]
+```
+
 ### **Run the code**
 ```bash
 python main.py --topic=<topic> 
@@ -85,5 +91,5 @@ Example: python main.py --topic="Polygenic risk score calculation using publicly
 
 
 #### Note: 
-Now using deepseek reasoning models hosted on Sophia/Polaris using Ollama. Will move to the ALCF inference endpoints when they make deepseek-r1 available.
+Now using deepseek reasoning models hosted on Sophia/Polaris using Ollama (Q4_K_M quantized versions). Will move to the ALCF inference endpoints when they make deepseek-r1 available.
 The 70b model works fine, but the 671b model throws error related to the number of experts being used is more than that allowed by the ollama llama.cpp installation
