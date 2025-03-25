@@ -75,10 +75,13 @@ git clone https://github.com/tnnandi/agentic_lab.git
 cd agentic_lab
 ```
 
-### **Create an Ollama server and an inference endpoint for the LLM**
+### **Create an Ollama server, pull model from the ollama model hub, and create an inference endpoint for the LLM**
+(instructions on Ollama can be found at https://github.com/ollama/ollama)
 ```bash
 ollama serve &
-(one time only for the initial pull) ollama pull <model_name> [e.g., ollama pull deepseek-r1:671b]
+ollama pull <model_name> [e.g., ollama pull deepseek-r1:70b] (one time only for the initial pull) 
+ollama run deepseek-r1:70b
+
 ```
 
 ### **Run the code**
