@@ -17,7 +17,7 @@
 # using an orchestrator-worker pattern, allow the orchestrator to create agents it can delegate jobs to instead of having these agents predetermined
 
 # to check if the ollama server is active try
-# curl http://localhost:11434/api/generate -d '{"model": "deepseek-r1:70b", "prompt": "Explain polygenic risk scores.", "temperature": 0.3}'
+# curl --noproxy localhost http://localhost:11434/api/generate -d '{"model": "deepseek-r1:70b", "prompt": "Explain polygenic risk scores.", "temperature": 0.3}'
 
 
 from agents import (

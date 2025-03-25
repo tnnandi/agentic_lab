@@ -1,8 +1,10 @@
 import requests
+import os
 from config import LLM_CONFIG
 
 total_tokens_used = 0
 output_log = []
+os.environ["NO_PROXY"] = "localhost"
 def query_llm(prompt, model=LLM_CONFIG["default_model"], temperature=0.7):
     global total_tokens_used
     url = "http://localhost:11434/api/generate"
