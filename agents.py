@@ -1,8 +1,31 @@
 from llm_utils import query_llm
+from prompts import *
+import os
 import subprocess
 import utils
 from config import LLM_CONFIG
 import re
+
+# list the prompts in a separate file
+# add capabilities for real time browsing, and browsing medical databases like TCGA, GTEx, GeneCard, 
+# add function to clean up report
+# add persistent context memory
+
+# function to clean up the report to conform to professional standards
+def clean_report(text):
+    """
+    Removes LLM reasoning, markdown, and formatting artifacts from report output.
+    """
+    # Remove <think>...</think> blocks
+    text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL)
+
+    # Remove markdown-style headers and separators
+    text = re.sub(r"^\s*#+\s*", "", text, flags=re.MULTILINE)
+    text = re.sub(r"^\s*-{3,}\s*$", "", text, flags=re.MULTILINE)
+
+    # Remove extra leading/trailing whitespace
+    return text.strip()
+
 
 # Principal Investigator agent
 class PrincipalInvestigatorAgent:
@@ -43,7 +66,10 @@ class PrincipalInvestigatorAgent:
                 if self.verbose:
                     print("PI: Browsing Agent provided the following sources:")
                     print(sources)
-                report = self.research_agent.draft_document(sources, topic)
+                raw_report = self.research_agent.draft_document(sources, topic)
+                print("Cleaning up report to a professional format")
+                report = clean_report(raw_report)
+
                 if self.verbose:
                     print("\nPI: Research Agent drafted the following report:")
                     print(report)
@@ -52,7 +78,11 @@ class PrincipalInvestigatorAgent:
                     print("\nPI: Code Writer Agent created the following code:")
                     print(code)
             else:  # use the critic feedback for the subsequent rounds of iteration
-                report = self.research_agent.improve_document(report, self.last_critique["document"])
+                raw_report = self.research_agent.improve_document(report, self.last_critique["document"])
+                # create a clean report removing LLM's inner thoughts and non-standard separators
+                print("Cleaning up report to a professional format")
+                report = clean_report(raw_report)
+
                 if self.verbose:
                     print("\nPI: Research Agent improved the draft of the report:")
                     print(report)
@@ -108,10 +138,7 @@ class PrincipalInvestigatorAgent:
 class BrowsingAgent:
     def browse(self, topic):
         print(f"********* Browsing Agent: Gathering sources for topic '{topic}'")
-        prompt = (
-            f"You are tasked with gathering reliable sources for the topic '{topic}'. Use resources like PubMed, arXiv, and other credible sources. "
-            "Provide a summary of the gathered information."
-        )
+        prompt = get_browsing_prompt(topic)
         return query_llm(prompt)
 
 
@@ -119,39 +146,13 @@ class BrowsingAgent:
 class ResearchAgent:
     def draft_document(self, sources, topic):
         print(f"********* Research Agent: Drafting research report for topic '{topic}'")
-        # prompt = (
-        #     f"Based on the following sources:\n{sources}\n"
-        #     f"Draft a comprehensive research report on {topic}.\n"
-        #     f"Please do not include your chains of thought in the report.\n"
-        #     f"Write the report in the format of a published scientific article."
-        # )
-
-#         prompt = (
-#             f"Based on the following sources:\n{sources}\n\n"
-#             f"Draft a comprehensive and professional scientific research report on the topic: '{topic}'.\n"
-#             f"Do NOT include any reasoning steps, internal thought processes, or self-reflection.\n"
-#             f"Write the report in the formal tone and structure of a published scientific article, including sections such as Abstract, Introduction, Methods, Results, Discussion, and Conclusion, as appropriate.\n"
-#             f"Focus entirely on the topic, using the sources provided. Do not include any assistant or AI commentary.\n"
-# )
-        prompt = (
-            f"Based on the following sources:\n{sources}\n\n"
-            f"Write a comprehensive, formal research report on the topic: '{topic}'.\n"
-            f"Structure the report like a peer-reviewed scientific article, including sections such as Abstract, Introduction, Methods, Results, Discussion, and Conclusion.\n"
-            f"Do not include any internal thoughts, reasoning steps, or assistant commentary. Only output the final report.\n"
-            f"Do not use markdown formatting. Use plain text with section headings clearly labeled.\n"
-)
-
+        prompt = get_research_draft_prompt(sources, topic)
         return query_llm(prompt)
+
 
     def improve_document(self, draft, feedback):
         print("********* Research Agent: Improving draft based on feedback")
-
-        prompt = (
-            f"Here is a draft report:\n{draft}\n\n"
-            f"And here is the feedback:\n{feedback}\n\n"
-            "Please revise the draft to address the feedback and improve its quality."
-        )
-
+        prompt = get_research_improve_prompt(draft, feedback)
         return query_llm(prompt)
 
 
@@ -159,21 +160,12 @@ class ResearchAgent:
 class CodeWriterAgent:
     def create_code(self, sources, topic):
         print("********** Code Writer Agent: writing code")
-        prompt = (
-            f"Based on the following sources:\n{sources}\n"
-            f"Create a Python code for {topic}. Include detailed comments explaining each step. If data is not available, create synthetic data."
-        )
-
+        prompt = get_code_prompt(sources, topic)
         return query_llm(prompt, temperature=LLM_CONFIG["temperature"]["coding"])
 
     def improve_code(self, code, feedback):
         print("********** Code Writer Agent: improving code based on feedback")
-        prompt = (
-            f"Here is a code:\n{code}\n\n"
-            f"And here is the feedback:\n{feedback}\n\n"
-            "Please revise the code to address the feedback and improve its clarity and functionality."
-        )
-
+        prompt = get_code_improve_prompt(code, feedback)
         return query_llm(prompt, temperature=LLM_CONFIG["temperature"]["coding"])
 
 
@@ -183,6 +175,7 @@ class CodeExecutorAgent:
         print("********** Code Executor Agent: executing code")
 
         # extract only the code section using regex
+        # code not being extracted properly
         cleaned_code = self.extract_code(code)
 
         if not cleaned_code.strip():
@@ -190,9 +183,10 @@ class CodeExecutorAgent:
             return "Execution failed: No valid Python code detected."
 
         # print extracted code and ask for user confirmation
-        print("\n========= Extracted Code =========")
+        print("\n========= Extracted code ========= \n")
+        print(" *********** Code starts here (no non-code elements should be below this) ***********")
         print(cleaned_code)
-        print("==================================\n")
+        print("*********** Code ends here ***********\n")
 
         user_input = input("Do you want to execute this code? (Yes/No): ").strip().lower()
 
@@ -317,17 +311,9 @@ class CodeReviewerAgent:
     def review_code(self, code, execution_result):
         print("********** Code Reviewer Agent: Reviewing code and execution result")
         if "failed" in execution_result.lower():
-            prompt = (
-                f"The following code failed to execute:\n\n{code}\n\n"
-                f"Here is the execution result:\n{execution_result}\n\n"
-                "Please analyze the error and suggest specific changes to fix the code."
-            )
+            prompt = get_code_review_failed_prompt(code, execution_result)
         else:
-            prompt = (
-                f"The following code executed successfully:\n\n{code}\n\n"
-                f"Here is the execution result:\n{execution_result}\n\n"
-                "Please review the output and suggest any improvements if necessary."
-            )
+            prompt = get_code_review_succeeded_prompt(code, execution_result)
         return query_llm(prompt, temperature=LLM_CONFIG["temperature"]["critique"])
 
 
@@ -336,32 +322,17 @@ class CriticAgent:
     def review_document(self, document, sources):
         """Review the research document for clarity, completeness, and accuracy."""
         print("********** Critic Agent: Reviewing research document **********")
-        prompt = (
-            f"The following is a research report on '{sources}':\n\n"
-            f"Report:\n{document}\n\n"
-            "Please critique this draft. Identify any gaps in logic, missing details, or areas that need improvement. "
-            "Provide actionable feedback to improve the quality of the research."
-        )
+        prompt = get_document_critique_prompt(document, sources)
         return query_llm(prompt)
 
     def review_code_execution(self, code, execution_result):
         """Analyze the code and execution result, checking for correctness and potential improvements."""
         print("********** Critic Agent: Reviewing code execution **********")
-        prompt = (
-            f"The following code was executed:\n\n{code}\n\n"
-            f"Execution result:\n{execution_result}\n\n"
-            "Please provide a detailed critique of the code. If it failed, analyze the reason and suggest improvements. "
-            "If it succeeded, suggest ways to optimize the code for efficiency, readability, or best practices."
-        )
+        prompt = get_code_execution_review_prompt(code, execution_result)
         return query_llm(prompt)
 
     def communicate_with_pi(self, report_feedback, code_feedback):
         print("********** Critic Agent: Communicating with PI")
-        prompt = (
-            f"The Principal Investigator requires a summary of the following feedback:\n\n"
-            f"Report Feedback:\n{report_feedback}\n\n"
-            f"Code Feedback:\n{code_feedback}\n\n"
-            "Please combine these into a concise and actionable summary, including recommendations for the next steps."
-        )
+        prompt = get_summary_feedback_prompt(report_feedback, code_feedback)
         return query_llm(prompt)
 
