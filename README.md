@@ -100,8 +100,19 @@ The 70b model works fine, but the 671b model throws error related to the number 
 
 ---
 
+### Scientific questions relevant to ongoing work at the lab
+1. Can we prioritize genes (in-silico) for performing experimental perturbations using expensive Perturbseq?
+2. Can we predict survival outcome for cancer patients using multimodal data?
+3. Can we identify key genes, proteins and histology patterns related to different cancer prognosis using multimodal datasets?
+
+
+
+
+
+---
 ### To do:
 
+- [ ] Add options to carry out research, or write code, or both.
 - [ ] Adding persistent context memory (e.g., to prevent past mistakes; currently the multiple rounds for improvement often do not recognize mistakes in the previous rounds)
 - [ ] Allow asking intermediary questions to the user and seek their feedback (add option to turn it off)
 - [ ] Create the agents dynamically
