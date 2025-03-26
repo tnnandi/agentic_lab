@@ -6,26 +6,8 @@ import utils
 from config import LLM_CONFIG
 import re
 
-# list the prompts in a separate file
 # add capabilities for real time browsing, and browsing medical databases like TCGA, GTEx, GeneCard, 
-# add function to clean up report
 # add persistent context memory
-
-# function to clean up the report to conform to professional standards
-def clean_report(text):
-    """
-    Removes LLM reasoning, markdown, and formatting artifacts from report output.
-    """
-    # Remove <think>...</think> blocks
-    text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL)
-
-    # Remove markdown-style headers and separators
-    text = re.sub(r"^\s*#+\s*", "", text, flags=re.MULTILINE)
-    text = re.sub(r"^\s*-{3,}\s*$", "", text, flags=re.MULTILINE)
-
-    # Remove extra leading/trailing whitespace
-    return text.strip()
-
 
 # Principal Investigator agent
 class PrincipalInvestigatorAgent:
@@ -68,7 +50,7 @@ class PrincipalInvestigatorAgent:
                     print(sources)
                 raw_report = self.research_agent.draft_document(sources, topic)
                 print("Cleaning up report to a professional format")
-                report = clean_report(raw_report)
+                report = utils.clean_report(raw_report)
 
                 if self.verbose:
                     print("\nPI: Research Agent drafted the following report:")
@@ -81,7 +63,7 @@ class PrincipalInvestigatorAgent:
                 raw_report = self.research_agent.improve_document(report, self.last_critique["document"])
                 # create a clean report removing LLM's inner thoughts and non-standard separators
                 print("Cleaning up report to a professional format")
-                report = clean_report(raw_report)
+                report = utils.clean_report(raw_report)
 
                 if self.verbose:
                     print("\nPI: Research Agent improved the draft of the report:")
@@ -135,6 +117,7 @@ class PrincipalInvestigatorAgent:
 
 
 # Browsing Agent
+# currently does not fetch real time info (need to do it)
 class BrowsingAgent:
     def browse(self, topic):
         print(f"********* Browsing Agent: Gathering sources for topic '{topic}'")

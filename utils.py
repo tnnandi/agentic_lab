@@ -1,4 +1,5 @@
 import os
+import re
 from datetime import datetime
 from docx import Document
 
@@ -25,3 +26,18 @@ def save_output(report, code, execution_result, iteration):
         f.write(execution_result)
 
     print(f"\nOutputs saved for iteration {iteration + 1} in {output_dir}")
+
+# function to clean up the report to conform to professional standards
+def clean_report(text):
+    """
+    Removes LLM reasoning, markdown, and formatting artifacts from report output.
+    """
+    # Remove <think>...</think> blocks
+    text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL)
+
+    # Remove markdown-style headers and separators
+    text = re.sub(r"^\s*#+\s*", "", text, flags=re.MULTILINE)
+    text = re.sub(r"^\s*-{3,}\s*$", "", text, flags=re.MULTILINE)
+
+    # Remove extra leading/trailing whitespace
+    return text.strip()
