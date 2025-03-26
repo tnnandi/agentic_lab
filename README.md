@@ -98,8 +98,9 @@ Example: python main.py --topic="Polygenic risk score calculation using publicly
 Now using deepseek reasoning models hosted on Sophia/Polaris using Ollama (Q4_K_M quantized versions). Will move to the ALCF inference endpoints when they make deepseek-r1 available.
 The 70b model works fine, but the 671b model throws error related to the number of experts being used is more than that allowed by the ollama llama.cpp installation
 
+---
 
-#### To do:
+### To do:
 
 - [ ] Adding persistent context memory (e.g., to prevent past mistakes; currently the multiple rounds for improvement often do not recognize mistakes in the previous rounds)
 - [ ] Allow asking intermediary questions to the user and seek their feedback (add option to turn it off)
