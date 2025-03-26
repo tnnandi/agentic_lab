@@ -20,6 +20,9 @@
 # curl --noproxy localhost http://localhost:11434/api/generate -d '{"model": "deepseek-r1:70b", "prompt": "Explain polygenic risk scores.", "temperature": 0.3}'
 
 
+# add options for research, code, or both
+# add validation metrics using standard datasets 
+
 from agents import (
     PrincipalInvestigatorAgent,
     BrowsingAgent,
@@ -36,6 +39,7 @@ import argparse
 # Aagument parser for topic input
 parser = argparse.ArgumentParser(description="Run Agentic Lab with a specified research topic.")
 parser.add_argument("--topic", type=str, required=True, help="Specify the research topic.")
+parser.add_argument("--quick_search", action="store_true", help="Carry out quick search without extensive research.")
 args = parser.parse_args()
 
 # initialize agents
@@ -54,6 +58,7 @@ pi_agent = PrincipalInvestigatorAgent(
     code_reviewer_agent,
     critic_agent,
     max_rounds=config.MAX_ROUNDS,
+    quick_search=args.quick_search,
     verbose=True,
 )
 
