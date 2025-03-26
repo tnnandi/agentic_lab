@@ -2,6 +2,7 @@ from llm_utils import query_llm
 import subprocess
 import utils
 from config import LLM_CONFIG
+import re
 
 # Principal Investigator agent
 class PrincipalInvestigatorAgent:
@@ -34,7 +35,7 @@ class PrincipalInvestigatorAgent:
         global total_tokens_used, output_log
         while self.iteration < self.max_rounds:
             print(
-                f"################  \nPI: Starting round {self.iteration + 1} for topic '{topic}' ########################"
+                f"################  PI: Starting round {self.iteration + 1} for topic '{topic}' ########################"
             )
 
             if self.iteration == 0:  # use the topic prompt for the first round of iteration
@@ -118,10 +119,27 @@ class BrowsingAgent:
 class ResearchAgent:
     def draft_document(self, sources, topic):
         print(f"********* Research Agent: Drafting research report for topic '{topic}'")
+        # prompt = (
+        #     f"Based on the following sources:\n{sources}\n"
+        #     f"Draft a comprehensive research report on {topic}.\n"
+        #     f"Please do not include your chains of thought in the report.\n"
+        #     f"Write the report in the format of a published scientific article."
+        # )
+
+#         prompt = (
+#             f"Based on the following sources:\n{sources}\n\n"
+#             f"Draft a comprehensive and professional scientific research report on the topic: '{topic}'.\n"
+#             f"Do NOT include any reasoning steps, internal thought processes, or self-reflection.\n"
+#             f"Write the report in the formal tone and structure of a published scientific article, including sections such as Abstract, Introduction, Methods, Results, Discussion, and Conclusion, as appropriate.\n"
+#             f"Focus entirely on the topic, using the sources provided. Do not include any assistant or AI commentary.\n"
+# )
         prompt = (
-            f"Based on the following sources:\n{sources}\n"
-            f"Draft a comprehensive research report on {topic}."
-        )
+            f"Based on the following sources:\n{sources}\n\n"
+            f"Write a comprehensive, formal research report on the topic: '{topic}'.\n"
+            f"Structure the report like a peer-reviewed scientific article, including sections such as Abstract, Introduction, Methods, Results, Discussion, and Conclusion.\n"
+            f"Do not include any internal thoughts, reasoning steps, or assistant commentary. Only output the final report.\n"
+            f"Do not use markdown formatting. Use plain text with section headings clearly labeled.\n"
+)
 
         return query_llm(prompt)
 
