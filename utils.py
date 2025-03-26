@@ -2,6 +2,9 @@ import os
 import re
 from datetime import datetime
 from docx import Document
+from duckduckgo_search import DDGS
+from bs4 import BeautifulSoup
+import requests
 
 def save_output(report, code, execution_result, iteration):
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -41,3 +44,20 @@ def clean_report(text):
 
     # Remove extra leading/trailing whitespace
     return text.strip()
+    
+
+def quick_duckduckgo_search(query, max_results=3):
+    print(f"Performing quick DuckDuckGo search for: '{query}'")
+    try:
+        with DDGS() as ddgs:
+            results = ddgs.text(query)
+            top_results = list(results)[:max_results]
+
+        formatted = "\n\n".join(
+            f"{i+1}. {r['title']}\n    {r['href']}\n    {r.get('body', '').strip()}"
+            for i, r in enumerate(top_results)
+        )
+
+        return f"Top DuckDuckGo Search Results for '{query}':\n\n{formatted}"
+    except Exception as e:
+        return f"DuckDuckGo search failed: {e}"

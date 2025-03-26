@@ -5,8 +5,11 @@ import subprocess
 import utils
 from config import LLM_CONFIG
 import re
+import requests
+from duckduckgo_search import DDGS
+from llm_utils import query_llm  # Your LLM wrapper
+import xml.etree.ElementTree as ET
 
-# add capabilities for real time browsing, and browsing medical databases like TCGA, GTEx, GeneCard, 
 # add persistent context memory
 
 # Principal Investigator agent
@@ -21,6 +24,7 @@ class PrincipalInvestigatorAgent:
             critic_agent,
             max_rounds=3,
             # each subsequent round improves on the previous round's outputs using feedback from the critic
+            quick_search=False,
             verbose=True,
     ):
         self.browsing_agent = browsing_agent
@@ -31,99 +35,185 @@ class PrincipalInvestigatorAgent:
         self.critic_agent = critic_agent
         self.iteration = 0
         self.max_rounds = max_rounds
+        self.quick_search = quick_search
         self.verbose = verbose
+        
 
     def coordinate(self, topic):
         """
         Coordinate with other agents to complete the task
         """
-        global total_tokens_used, output_log
-        while self.iteration < self.max_rounds:
-            print(
-                f"################  PI: Starting round {self.iteration + 1} for topic '{topic}' ########################"
-            )
+        if self.quick_search:
+            print("Shortcut mode activated: Directly searching for real-time results using DuckDuckGo.\n")
+            results = utils.quick_duckduckgo_search(topic)
+            print(results)
+            return results, None, True
 
-            if self.iteration == 0:  # use the topic prompt for the first round of iteration
-                sources = self.browsing_agent.browse(topic)
-                if self.verbose:
-                    print("PI: Browsing Agent provided the following sources:")
-                    print(sources)
-                raw_report = self.research_agent.draft_document(sources, topic)
-                print("Cleaning up report to a professional format")
-                report = utils.clean_report(raw_report)
-
-                if self.verbose:
-                    print("\nPI: Research Agent drafted the following report:")
-                    print(report)
-                code = self.code_writer_agent.create_code(sources, topic)
-                if self.verbose:
-                    print("\nPI: Code Writer Agent created the following code:")
-                    print(code)
-            else:  # use the critic feedback for the subsequent rounds of iteration
-                raw_report = self.research_agent.improve_document(report, self.last_critique["document"])
-                # create a clean report removing LLM's inner thoughts and non-standard separators
-                print("Cleaning up report to a professional format")
-                report = utils.clean_report(raw_report)
-
-                if self.verbose:
-                    print("\nPI: Research Agent improved the draft of the report:")
-                    print(report)
-                code = self.code_writer_agent.improve_code(code, self.last_critique["code"])
-                if self.verbose:
-                    print("\nPI: Code Writer Agent improved the code:")
-                    print(code)
-
-            # Code Executor agent executes the code
-            execution_result = self.code_executor_agent.execute_code(code)
-            if self.verbose:
-                print("\nPI: Code Executor Agent execution result:")
-                print(execution_result)
-
-            # Code Reviewer agent checks the output and suggests changes if needed
-            review_feedback = self.code_reviewer_agent.review_code(
-                code, execution_result
-            )
-            if self.verbose:
-                print("\nPI: Code Reviewer Agent provided the following feedback:")
-                print(review_feedback)
-
-            # Critic agent reviews BOTH the document and the executed code
-            critique_report = self.critic_agent.review_document(report, sources)
-            critique_code = self.critic_agent.review_code_execution(code, execution_result)
-            summary_feedback = self.critic_agent.communicate_with_pi(critique_report, critique_code)
-            self.last_critique = {"document": critique_report, "code": critique_code}
-
-            if self.verbose:
-                print("\nPI: Critic Agent summarized the feedback:")
-                print(summary_feedback)
-
-            # save outputs after every round
-            utils.save_output(report, code, execution_result, self.iteration)
-
-            # if the code failed, improve it based on feedback
-            if "failed" in execution_result.lower():
-                print("\nPI: Code execution failed. Improving code based on feedback.")
-                code = self.code_writer_agent.improve_code(
-                    code, review_feedback
+        else:
+            global total_tokens_used, output_log
+            while self.iteration < self.max_rounds:
+                print(
+                    f"################  PI: Starting round {self.iteration + 1} for topic '{topic}' ########################"
                 )
-            else:
-                print("\nPI: Code executed successfully. Finalizing.")
-                return report, code, True
 
-            self.iteration += 1
+                if self.iteration == 0:  # use the topic prompt for the first round of iteration
+                    sources = self.browsing_agent.browse(topic)
+                    if self.verbose:
+                        print("PI: Browsing Agent provided the following sources:")
+                        print(sources)
+                    raw_report = self.research_agent.draft_document(sources, topic)
+                    print("Cleaning up report to a professional format")
+                    report = utils.clean_report(raw_report)
 
-        print(f"\nPI: Maximum rounds ({self.max_rounds}) reached. Stopping.")
-        return report, code, False
+                    if self.verbose:
+                        print("\nPI: Research Agent drafted the following report:")
+                        print(report)
+                    code = self.code_writer_agent.create_code(sources, topic)
+                    if self.verbose:
+                        print("\nPI: Code Writer Agent created the following code:")
+                        print(code)
+                else:  # use the critic feedback for the subsequent rounds of iteration
+                    raw_report = self.research_agent.improve_document(report, self.last_critique["document"])
+                    # create a clean report removing LLM's inner thoughts and non-standard separators
+                    print("Cleaning up report to a professional format")
+                    report = utils.clean_report(raw_report)
+
+                    if self.verbose:
+                        print("\nPI: Research Agent improved the draft of the report:")
+                        print(report)
+                    code = self.code_writer_agent.improve_code(code, self.last_critique["code"])
+                    if self.verbose:
+                        print("\nPI: Code Writer Agent improved the code:")
+                        print(code)
+
+                # Code Executor agent executes the code
+                execution_result = self.code_executor_agent.execute_code(code)
+                if self.verbose:
+                    print("\nPI: Code Executor Agent execution result:")
+                    print(execution_result)
+
+                # Code Reviewer agent checks the output and suggests changes if needed
+                review_feedback = self.code_reviewer_agent.review_code(
+                    code, execution_result
+                )
+                if self.verbose:
+                    print("\nPI: Code Reviewer Agent provided the following feedback:")
+                    print(review_feedback)
+
+                # Critic agent reviews BOTH the document and the executed code
+                critique_report = self.critic_agent.review_document(report, sources)
+                critique_code = self.critic_agent.review_code_execution(code, execution_result)
+                summary_feedback = self.critic_agent.communicate_with_pi(critique_report, critique_code)
+                self.last_critique = {"document": critique_report, "code": critique_code}
+
+                if self.verbose:
+                    print("\nPI: Critic Agent summarized the feedback:")
+                    print(summary_feedback)
+
+                # save outputs after every round
+                utils.save_output(report, code, execution_result, self.iteration)
+
+                # if the code failed, improve it based on feedback
+                if "failed" in execution_result.lower():
+                    print("\nPI: Code execution failed. Improving code based on feedback.")
+                    code = self.code_writer_agent.improve_code(
+                        code, review_feedback
+                    )
+                else:
+                    print("\nPI: Code executed successfully. Finalizing.")
+                    return report, code, True
+
+                self.iteration += 1
+
+            print(f"\nPI: Maximum rounds ({self.max_rounds}) reached. Stopping.")
+            return report, code, False
 
 
 # Browsing Agent
 # currently does not fetch real time info (need to do it)
-class BrowsingAgent:
+class BrowsingAgent_Old:
     def browse(self, topic):
         print(f"********* Browsing Agent: Gathering sources for topic '{topic}'")
         prompt = get_browsing_prompt(topic)
         return query_llm(prompt)
 
+class BrowsingAgent:
+    def browse(self, topic):
+        print(f"********* Browsing Agent: Gathering sources for topic '{topic}'")
+
+        results = {
+            "PubMed": self.search_pubmed(topic),
+            "DuckDuckGo": self.search_duckduckgo(topic),
+            "arXiv": self.search_arxiv(topic),
+            # "GTEx": [f"https://gtexportal.org/home/search/{topic}"],
+            # "GeneCards": [f"https://www.genecards.org/Search/Keyword?queryString={topic}"],
+            "Semantic Scholar": self.search_semantic_scholar(topic)
+        }
+
+        formatted_sources = "\n".join(
+            f"\n[{source}]\n" + "\n".join(links)
+            for source, links in results.items() if links
+        )
+
+        prompt = get_browsing_prompt(topic, formatted_sources)
+        summary = query_llm(prompt)
+
+        return summary + "\n\nSources:\n" + formatted_sources
+
+    def search_duckduckgo(self, query, max_results=5):
+        try:
+            with DDGS() as ddgs:
+                results = ddgs.text(query)
+                return [res["href"] for res in list(results)[:max_results]]
+        except Exception as e:
+            print(f"DuckDuckGo search error: {e}")
+            return []
+
+    def search_pubmed(self, query, max_results=5):
+        try:
+            url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi"
+            params = {
+                "db": "pubmed",
+                "term": query,
+                "retmode": "json",
+                "retmax": max_results
+            }
+            res = requests.get(url, params=params)
+            ids = res.json()["esearchresult"]["idlist"]
+            return [f"https://pubmed.ncbi.nlm.nih.gov/{pid}/" for pid in ids]
+        except Exception as e:
+            print(f"PubMed search error: {e}")
+            return []
+
+    def search_arxiv(self, query, max_results=5):
+        try:
+            base_url = "http://export.arxiv.org/api/query"
+            params = {
+                "search_query": f"all:{query}",
+                "start": 0,
+                "max_results": max_results
+            }
+            response = requests.get(base_url, params=params)
+            root = ET.fromstring(response.content)
+            return [entry.find("{http://www.w3.org/2005/Atom}id").text for entry in root.findall("{http://www.w3.org/2005/Atom}entry")]
+        except Exception as e:
+            print(f"arXiv search error: {e}")
+            return []
+
+    def search_semantic_scholar(self, query, max_results=5):
+        try:
+            url = f"https://api.semanticscholar.org/graph/v1/paper/search"
+            params = {
+                "query": query,
+                "limit": max_results,
+                "fields": "title,url"
+            }
+            res = requests.get(url, params=params)
+            data = res.json()
+            return [paper["url"] for paper in data.get("data", [])]
+        except Exception as e:
+            print(f"Semantic Scholar search error: {e}")
+            return []
 
 # Research Agent
 class ResearchAgent:
