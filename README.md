@@ -76,7 +76,8 @@ cd agentic_lab
 ```
 
 ### **Create an Ollama server, pull model from the ollama model hub, and create an inference endpoint for the LLM**
-(instructions on Ollama can be found at https://github.com/ollama/ollama)
+Instructions on Ollama can be found at https://github.com/ollama/ollama 
+[to install ollama without sudo access: curl -L https://ollama.com/download/ollama-linux-amd64.tgz -o ollama-linux-amd64.tgz; tar -xzf ollama-linux-amd64.tgz]
 ```bash
 ollama serve &
 ollama pull <model_name> [e.g., ollama pull deepseek-r1:70b] (one time only for the initial pull) 
