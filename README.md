@@ -127,3 +127,4 @@ Now using deepseek and Qwen reasoning models hosted on Sophia/Polaris using Olla
 - [ ] Adding persistent context memory (e.g., to prevent past mistakes; currently the multiple rounds for improvement often do not recognize mistakes in the previous rounds)
 - [ ] Allow asking intermediary questions to the user and seek their feedback (add option to turn it off)
 - [ ] Create the agents dynamically
+- [ ] Add additional browser agents for medRxiv, bioRxiv, and google scholar
