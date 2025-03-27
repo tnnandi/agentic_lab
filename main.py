@@ -1,5 +1,5 @@
 # on laptop: conda activate /mnt/c/Users/tnandi/Downloads/ai_codes/ai_py3p12_env OR conda activate llm_env
-# on Polaris: conda activate /lus/grand/projects/GeomicVar/tarak/ai_codes/ai_py3p12_env
+# on Polaris: module load conda;conda activate /lus/grand/projects/GeomicVar/tarak/ai_codes/ai_py3p12_env
 
 # Now using deepseek reasoning models hosted on Sophia/Polaris using Ollama. Will move to the ALCF inference endpoints when they make deepseek-r1 available
 # the 70b model workd fine, but the 671b model throws error related to the number of experts being used is more than that allowed by the ollama llama.cpp installation
@@ -40,7 +40,7 @@ import argparse
 parser = argparse.ArgumentParser(description="Run Agentic Lab with a specified research topic.")
 parser.add_argument("--topic", type=str, required=True, help="Specify the research topic.")
 parser.add_argument("--quick_search", action="store_true", help="Carry out quick search without extensive research.")
-# parser.add_argument("--")
+parser.add_argument("--mode", choices=["research_only", "code_only", "both"], default="both", help="Choose task mode: only generate research report, only code, or both (default)")
 args = parser.parse_args()
 
 # initialize agents
@@ -60,6 +60,7 @@ pi_agent = PrincipalInvestigatorAgent(
     critic_agent,
     max_rounds=config.MAX_ROUNDS,
     quick_search=args.quick_search,
+    mode=args.mode,
     verbose=True,
 )
 

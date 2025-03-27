@@ -5,6 +5,9 @@ from docx import Document
 from duckduckgo_search import DDGS
 from bs4 import BeautifulSoup
 import requests
+from llm_utils import query_llm
+import prompts
+
 
 def save_output(report, code, execution_result, iteration):
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -12,21 +15,24 @@ def save_output(report, code, execution_result, iteration):
     os.makedirs(output_dir, exist_ok=True)
 
     # save report
-    doc = Document()
-    doc.add_heading(f"Research Report - Iteration {iteration + 1}", level=1)
-    doc.add_paragraph(report)
-    report_file = os.path.join(output_dir, f"research_report_iteration_{iteration + 1}.docx")
-    doc.save(report_file)
+    if report:
+        doc = Document()
+        doc.add_heading(f"Research Report - Iteration {iteration + 1}", level=1)
+        doc.add_paragraph(report)
+        report_file = os.path.join(output_dir, f"research_report_iteration_{iteration + 1}.docx")
+        doc.save(report_file)
 
     # save code
-    code_file = os.path.join(output_dir, f"code_iteration_{iteration + 1}.py")
-    with open(code_file, "w") as f:
-        f.write(code)
+    if code:
+        code_file = os.path.join(output_dir, f"code_iteration_{iteration + 1}.py")
+        with open(code_file, "w") as f:
+            f.write(code)
 
     # save execution results
-    result_file = os.path.join(output_dir, f"execution_result_{iteration + 1}.txt")
-    with open(result_file, "w") as f:
-        f.write(execution_result)
+    if execution_result: 
+        result_file = os.path.join(output_dir, f"execution_result_{iteration + 1}.txt")
+        with open(result_file, "w") as f:
+            f.write(execution_result)
 
     print(f"\nOutputs saved for iteration {iteration + 1} in {output_dir}")
 
@@ -45,7 +51,7 @@ def clean_report(text):
     # Remove extra leading/trailing whitespace
     return text.strip()
     
-
+    
 def quick_duckduckgo_search(query, max_results=3):
     print(f"Performing quick DuckDuckGo search for: '{query}'")
     try:
@@ -53,11 +59,20 @@ def quick_duckduckgo_search(query, max_results=3):
             results = ddgs.text(query)
             top_results = list(results)[:max_results]
 
-        formatted = "\n\n".join(
+        raw_text = "\n\n".join(
             f"{i+1}. {r['title']}\n    {r['href']}\n    {r.get('body', '').strip()}"
             for i, r in enumerate(top_results)
         )
 
-        return f"Top DuckDuckGo Search Results for '{query}':\n\n{formatted}"
+        print("Summarizing top search results...\n")
+
+        summary_prompt = prompts.get_quick_search_summary_prompt(query, raw_text)
+
+        raw_summary = query_llm(summary_prompt).strip()
+        # Remove <think>...</think> block if present
+        summary = re.sub(r"<think>.*?</think>", "", raw_summary, flags=re.DOTALL).strip()
+
+        return f"Answer:\n{summary}\n\nBased on DuckDuckGo Search Results:\n\n{raw_text}"
+
     except Exception as e:
         return f"DuckDuckGo search failed: {e}"

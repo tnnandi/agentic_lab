@@ -22,9 +22,9 @@ class PrincipalInvestigatorAgent:
             code_executor_agent,
             code_reviewer_agent,
             critic_agent,
-            max_rounds=3,
-            # each subsequent round improves on the previous round's outputs using feedback from the critic
+            max_rounds=3, # each subsequent round improves on the previous round's outputs using feedback from the critic
             quick_search=False,
+            mode="both",
             verbose=True,
     ):
         self.browsing_agent = browsing_agent
@@ -36,6 +36,7 @@ class PrincipalInvestigatorAgent:
         self.iteration = 0
         self.max_rounds = max_rounds
         self.quick_search = quick_search
+        self.mode = mode
         self.verbose = verbose
         
 
@@ -51,6 +52,7 @@ class PrincipalInvestigatorAgent:
 
         else:
             global total_tokens_used, output_log
+            print("self.mode: ", self.mode)
             while self.iteration < self.max_rounds:
                 print(
                     f"################  PI: Starting round {self.iteration + 1} for topic '{topic}' ########################"
@@ -61,66 +63,83 @@ class PrincipalInvestigatorAgent:
                     if self.verbose:
                         print("PI: Browsing Agent provided the following sources:")
                         print(sources)
-                    raw_report = self.research_agent.draft_document(sources, topic)
-                    print("Cleaning up report to a professional format")
-                    report = utils.clean_report(raw_report)
-
+                        print("------------------------------------")
+                    if self.mode in ["research_only", "both"]:
+                        raw_report = self.research_agent.draft_document(sources, topic)
+                        print("Cleaning up report to a professional format")
+                        report = utils.clean_report(raw_report)
+                    else:
+                        report = None
                     if self.verbose:
                         print("\nPI: Research Agent drafted the following report:")
                         print(report)
-                    code = self.code_writer_agent.create_code(sources, topic)
-                    if self.verbose:
-                        print("\nPI: Code Writer Agent created the following code:")
-                        print(code)
+                    
+                    if self.mode in ["code_only", "both"]:
+                        code = self.code_writer_agent.create_code(sources, topic)
+                        if self.verbose:
+                            print("\nPI: Code Writer Agent created the following code:")
+                            print(code) 
+                    else:
+                        code = None
+                        
                 else:  # use the critic feedback for the subsequent rounds of iteration
-                    raw_report = self.research_agent.improve_document(report, self.last_critique["document"])
-                    # create a clean report removing LLM's inner thoughts and non-standard separators
-                    print("Cleaning up report to a professional format")
-                    report = utils.clean_report(raw_report)
+                    if self.mode in ["research_only", "both"]:
+                        raw_report = self.research_agent.improve_document(report, self.last_critique["document"])
+                        # create a clean report removing LLM's inner thoughts and non-standard separators
+                        print("Cleaning up report to a professional format")
+                        report = utils.clean_report(raw_report)
 
-                    if self.verbose:
-                        print("\nPI: Research Agent improved the draft of the report:")
-                        print(report)
-                    code = self.code_writer_agent.improve_code(code, self.last_critique["code"])
-                    if self.verbose:
-                        print("\nPI: Code Writer Agent improved the code:")
-                        print(code)
+                        if self.verbose:
+                            print("\nPI: Research Agent improved the draft of the report:")
+                            print(report)
 
-                # Code Executor agent executes the code
-                execution_result = self.code_executor_agent.execute_code(code)
-                if self.verbose:
-                    print("\nPI: Code Executor Agent execution result:")
-                    print(execution_result)
-
-                # Code Reviewer agent checks the output and suggests changes if needed
-                review_feedback = self.code_reviewer_agent.review_code(
-                    code, execution_result
-                )
-                if self.verbose:
-                    print("\nPI: Code Reviewer Agent provided the following feedback:")
-                    print(review_feedback)
+                    if self.mode in ["code_only", "both"]:
+                        code = self.code_writer_agent.improve_code(code, self.last_critique["code"])
+                        if self.verbose:
+                            print("\nPI: Code Writer Agent improved the code:")
+                            print(code)
 
                 # Critic agent reviews BOTH the document and the executed code
-                critique_report = self.critic_agent.review_document(report, sources)
-                critique_code = self.critic_agent.review_code_execution(code, execution_result)
-                summary_feedback = self.critic_agent.communicate_with_pi(critique_report, critique_code)
-                self.last_critique = {"document": critique_report, "code": critique_code}
+                if self.mode in ["code_only", "both"]:
+                    # Code Executor agent executes the code
+                    execution_result = self.code_executor_agent.execute_code(code)
+                    if self.verbose:
+                        print("\nPI: Code Executor Agent execution result:")
+                        print(execution_result)
 
-                if self.verbose:
-                    print("\nPI: Critic Agent summarized the feedback:")
-                    print(summary_feedback)
+                    # Code Reviewer agent checks the output and suggests changes if needed
+                    review_feedback = self.code_reviewer_agent.review_code(
+                        code, execution_result
+                    )
+                    if self.verbose:
+                        print("\nPI: Code Reviewer Agent provided the following feedback:")
+                        print(review_feedback)
+                    critique_code = self.critic_agent.review_code_execution(code, execution_result)
+                else:
+                    critique_code = ""
+                    execution_result = ""
+                
+                if self.mode in ["research_only", "both"]:
+                    critique_report = self.critic_agent.review_document(report, sources)
+                else:
+                    critique_report = ""
+                
+                if self.mode == "both":
+                    summary_feedback = self.critic_agent.communicate_with_pi(critique_report, critique_code)
+                    self.last_critique = {"document": critique_report, "code": critique_code}
+                    if self.verbose:
+                        print("\nPI: Critic Agent summarized the feedback:")
+                        print(summary_feedback)
 
                 # save outputs after every round
                 utils.save_output(report, code, execution_result, self.iteration)
 
                 # if the code failed, improve it based on feedback
-                if "failed" in execution_result.lower():
+                if self.mode in ["both", "code_only"] and "failed" in execution_result.lower():
                     print("\nPI: Code execution failed. Improving code based on feedback.")
-                    code = self.code_writer_agent.improve_code(
-                        code, review_feedback
-                    )
+                    code = self.code_writer_agent.improve_code(code, review_feedback)
                 else:
-                    print("\nPI: Code executed successfully. Finalizing.")
+                    print("\nPI: Pipeline execution complete. Finalizing.")
                     return report, code, True
 
                 self.iteration += 1
