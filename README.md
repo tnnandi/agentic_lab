@@ -100,7 +100,7 @@ ollama run deepseek-r1:70b
 ```bash
 python main.py --topic=<topic> 
 
-Example: python main.py --topic="Polygenic risk score calculation using publicly available GWAS and genotype data"
+Example: python main.py --topic="Obtaining cancer survival outcome from bulk RNASeq and histology embeddings"
 ```
 
 
