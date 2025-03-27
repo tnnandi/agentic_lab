@@ -242,13 +242,13 @@ class ResearchAgent:
     def draft_document(self, sources, topic):
         print(f"********* Research Agent: Drafting research report for topic '{topic}'")
         prompt = prompts.get_research_draft_prompt(sources, topic)
-        return query_llm(prompt)
+        return query_llm(prompt, temperature=LLM_CONFIG["temperature"]["research"])
 
 
     def improve_document(self, draft, feedback):
         print("********* Research Agent: Improving draft based on feedback")
         prompt = prompts.get_research_improve_prompt(draft, feedback)
-        return query_llm(prompt)
+        return query_llm(prompt, temperature=LLM_CONFIG["temperature"]["research"])
 
 
 # Code Writer Agent
@@ -422,16 +422,16 @@ class CriticAgent:
         """Review the research document for clarity, completeness, and accuracy."""
         print("********** Critic Agent: Reviewing research document **********")
         prompt = prompts.get_document_critique_prompt(document, sources)
-        return query_llm(prompt)
+        return query_llm(prompt, temperature=LLM_CONFIG["temperature"]["critique"])
 
     def review_code_execution(self, code, execution_result):
         """Analyze the code and execution result, checking for correctness and potential improvements."""
         print("********** Critic Agent: Reviewing code execution **********")
         prompt = prompts.get_code_execution_review_prompt(code, execution_result)
-        return query_llm(prompt)
+        return query_llm(prompt, temperature=LLM_CONFIG["temperature"]["critique"])
 
     def communicate_with_pi(self, report_feedback, code_feedback):
         print("********** Critic Agent: Communicating with PI")
         prompt = prompts.get_summary_feedback_prompt(report_feedback, code_feedback)
-        return query_llm(prompt)
+        return query_llm(prompt, temperature=LLM_CONFIG["temperature"]["critique"])
 
