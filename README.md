@@ -62,10 +62,11 @@ Ensure you have the following installed:
 ### **Project Structure**
 ```plaintext
 agentic_lab/
+│── main.py           # Main entry point
 │── agents.py         # Defines the Principal Investigator (PI) agent and sub-agents
+│── prompts.py        # Defines the prompts for various agents
 │── config.py         # Model configurations 
-│── llm_utils.py      # Handles interactions with the LLM (for now, DeepSeek R1 70B)
-│── main.py           # Main entry point 
+│── llm_utils.py      # Handles interactions with the LLM (now using, DeepSeek R1 70B and QwQ 32B hosted on Ollama) 
 │── utils.py          # Helper functions for saving output and logging
 │── output_agent/     # Directory where generated reports, code, and logs are saved
 ```
@@ -86,6 +87,16 @@ ollama run deepseek-r1:70b
 ```
 
 ### **Run the code**
+
+#### Command line arguments
+
+| Argument         | Type     | Required | Description                                                                 |
+|------------------|----------|----------|-----------------------------------------------------------------------------|
+| `--topic`        | `str`    | Yes      | Specify the research topic.                                                |
+| `--quick_search` | `flag`   | No       | Carry out quick search without extensive research.                         |
+| `--mode`         | `str`    | No       | Choose task mode: `research_only`, `code_only`, or `both` (default: `both`)|
+
+
 ```bash
 python main.py --topic=<topic> 
 
@@ -96,7 +107,7 @@ Example: python main.py --topic="Polygenic risk score calculation using publicly
 
 #### Note: 
 Now using deepseek reasoning models hosted on Sophia/Polaris using Ollama (Q4_K_M quantized versions). Will move to the ALCF inference endpoints when they make deepseek-r1 available.
-The 70b model works fine, but the 671b model throws error related to the number of experts being used is more than that allowed by the ollama llama.cpp installation
+<!-- The 70b model works fine, but the 671b model throws error related to the number of experts being used is more than that allowed by the ollama llama.cpp installation -->
 
 ---
 
@@ -112,7 +123,7 @@ The 70b model works fine, but the 671b model throws error related to the number 
 ---
 ### To do:
 
-- [ ] Add options to carry out research, or write code, or both.
+- [x] Add options to carry out research, or write code, or both.
 - [ ] Adding persistent context memory (e.g., to prevent past mistakes; currently the multiple rounds for improvement often do not recognize mistakes in the previous rounds)
 - [ ] Allow asking intermediary questions to the user and seek their feedback (add option to turn it off)
 - [ ] Create the agents dynamically
