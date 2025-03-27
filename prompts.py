@@ -1,9 +1,27 @@
-def get_browsing_prompt(topic):
+def get_quick_search_summary_prompt(query, raw_text):
     return (
-        f"You are tasked with gathering reliable sources for the topic '{topic}'. "
-        "Use resources like PubMed, arXiv, TCGA, GTEx, GeneCard, and other credible databases. "
-        "Provide a summary of the gathered information."
-    )
+            f"You are a smart research assistant. Based on the following search results, provide a concise factual answer to the question:\n\n"
+            f"Question: {query}\n\n"
+            f"Search Results:\n{raw_text}\n\n"
+            f"Answer:"
+        )
+
+
+
+def get_browsing_prompt(topic, formatted_sources):
+    # return (
+    #     f"You are tasked with gathering reliable sources for the topic '{topic}'. "
+    #     "Use resources like PubMed, arXiv, TCGA, GTEx, GeneCard, and other credible databases. "
+    #     "Provide a summary of the gathered information."
+    # )
+
+    return (
+            f"The following are links and sources for the topic: '{topic}'.\n"
+            f"Summarize the key ideas or themes based on the URLs:\n{formatted_sources}\n\n"
+            f"Return a concise summary suitable for grounding a research report."
+        )
+
+
 
 def get_research_draft_prompt(sources, topic):
     return (

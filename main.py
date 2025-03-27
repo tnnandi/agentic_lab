@@ -40,6 +40,7 @@ import argparse
 parser = argparse.ArgumentParser(description="Run Agentic Lab with a specified research topic.")
 parser.add_argument("--topic", type=str, required=True, help="Specify the research topic.")
 parser.add_argument("--quick_search", action="store_true", help="Carry out quick search without extensive research.")
+parser.add_argument("--")
 args = parser.parse_args()
 
 # initialize agents
@@ -68,6 +69,9 @@ finalized = False
 
 while not finalized:
     report, code, finalized = pi_agent.coordinate(topic)
+    if args.quick_search:
+        print("\n Quick search complete. Exiting.\n")
+        exit(0)
 
     # ensure execution_result is passed correctly to be consistent with the other calls
     execution_result = "Success" if finalized else "Failed"

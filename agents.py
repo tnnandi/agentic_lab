@@ -1,5 +1,5 @@
 from llm_utils import query_llm
-from prompts import *
+import prompts
 import os
 import subprocess
 import utils
@@ -134,7 +134,7 @@ class PrincipalInvestigatorAgent:
 class BrowsingAgent_Old:
     def browse(self, topic):
         print(f"********* Browsing Agent: Gathering sources for topic '{topic}'")
-        prompt = get_browsing_prompt(topic)
+        prompt = prompts.get_browsing_prompt(topic)
         return query_llm(prompt)
 
 class BrowsingAgent:
@@ -155,7 +155,7 @@ class BrowsingAgent:
             for source, links in results.items() if links
         )
 
-        prompt = get_browsing_prompt(topic, formatted_sources)
+        prompt = prompts.get_browsing_prompt(topic, formatted_sources)
         summary = query_llm(prompt)
 
         return summary + "\n\nSources:\n" + formatted_sources
@@ -219,13 +219,13 @@ class BrowsingAgent:
 class ResearchAgent:
     def draft_document(self, sources, topic):
         print(f"********* Research Agent: Drafting research report for topic '{topic}'")
-        prompt = get_research_draft_prompt(sources, topic)
+        prompt = prompts.get_research_draft_prompt(sources, topic)
         return query_llm(prompt)
 
 
     def improve_document(self, draft, feedback):
         print("********* Research Agent: Improving draft based on feedback")
-        prompt = get_research_improve_prompt(draft, feedback)
+        prompt = prompts.get_research_improve_prompt(draft, feedback)
         return query_llm(prompt)
 
 
@@ -233,12 +233,12 @@ class ResearchAgent:
 class CodeWriterAgent:
     def create_code(self, sources, topic):
         print("********** Code Writer Agent: writing code")
-        prompt = get_code_prompt(sources, topic)
+        prompt = prompts.get_code_prompt(sources, topic)
         return query_llm(prompt, temperature=LLM_CONFIG["temperature"]["coding"])
 
     def improve_code(self, code, feedback):
         print("********** Code Writer Agent: improving code based on feedback")
-        prompt = get_code_improve_prompt(code, feedback)
+        prompt = prompts.get_code_improve_prompt(code, feedback)
         return query_llm(prompt, temperature=LLM_CONFIG["temperature"]["coding"])
 
 
@@ -384,9 +384,9 @@ class CodeReviewerAgent:
     def review_code(self, code, execution_result):
         print("********** Code Reviewer Agent: Reviewing code and execution result")
         if "failed" in execution_result.lower():
-            prompt = get_code_review_failed_prompt(code, execution_result)
+            prompt = prompts.get_code_review_failed_prompt(code, execution_result)
         else:
-            prompt = get_code_review_succeeded_prompt(code, execution_result)
+            prompt = prompts.get_code_review_succeeded_prompt(code, execution_result)
         return query_llm(prompt, temperature=LLM_CONFIG["temperature"]["critique"])
 
 
@@ -395,17 +395,17 @@ class CriticAgent:
     def review_document(self, document, sources):
         """Review the research document for clarity, completeness, and accuracy."""
         print("********** Critic Agent: Reviewing research document **********")
-        prompt = get_document_critique_prompt(document, sources)
+        prompt = prompts.get_document_critique_prompt(document, sources)
         return query_llm(prompt)
 
     def review_code_execution(self, code, execution_result):
         """Analyze the code and execution result, checking for correctness and potential improvements."""
         print("********** Critic Agent: Reviewing code execution **********")
-        prompt = get_code_execution_review_prompt(code, execution_result)
+        prompt = prompts.get_code_execution_review_prompt(code, execution_result)
         return query_llm(prompt)
 
     def communicate_with_pi(self, report_feedback, code_feedback):
         print("********** Critic Agent: Communicating with PI")
-        prompt = get_summary_feedback_prompt(report_feedback, code_feedback)
+        prompt = prompts.get_summary_feedback_prompt(report_feedback, code_feedback)
         return query_llm(prompt)
 
