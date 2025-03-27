@@ -103,10 +103,10 @@ python main.py --topic=<topic>
 Example: python main.py --topic="Obtaining cancer survival outcome from bulk RNASeq and histology embeddings"
 ```
 
-
+Sample output files (research reports, code, etc.) can be downloaded from [this link](https://drive.google.com/drive/folders/1POuQGOqttcD7fNEBJzYD8ga45cWX4x-z?usp=sharing). 
 
 #### Note: 
-Now using deepseek reasoning models hosted on Sophia/Polaris using Ollama (Q4_K_M quantized versions). Will move to the ALCF inference endpoints when they make deepseek-r1 available.
+Now using deepseek and Qwen reasoning models hosted on Sophia/Polaris using Ollama (Q4_K_M quantized versions). Will move to the ALCF inference endpoints when they make deepseek-r1 available.
 <!-- The 70b model works fine, but the 671b model throws error related to the number of experts being used is more than that allowed by the ollama llama.cpp installation -->
 
 ---
