@@ -40,7 +40,7 @@ import argparse
 parser = argparse.ArgumentParser(description="Run Agentic Lab with a specified research topic.")
 parser.add_argument("--topic", type=str, required=True, help="Specify the research topic.")
 parser.add_argument("--quick_search", action="store_true", help="Carry out quick search without extensive research.")
-parser.add_argument("--")
+# parser.add_argument("--")
 args = parser.parse_args()
 
 # initialize agents
