@@ -51,6 +51,21 @@ def clean_report(text):
     # Remove extra leading/trailing whitespace
     return text.strip()
     
+def extract_code_only(text):
+    """
+    Extracts clean Python code from an LLM response by:
+    - Removing <think>...</think> blocks
+    - Removing markdown code fences (```python ... ```)
+    - Returning only executable code with inline comments
+    """
+    # Remove <think>...</think> sections
+    text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL)
+
+    # Extract the code inside ```python ... ``` blocks, if they exist
+    match = re.search(r"```(?:python)?\n(.*?)```", text, re.DOTALL)
+    code = match.group(1).strip() if match else text.strip()
+
+    return code
     
 def quick_duckduckgo_search(query, max_results=3):
     print(f"Performing quick DuckDuckGo search for: '{query}'")

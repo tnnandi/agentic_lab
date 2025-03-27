@@ -9,6 +9,7 @@ import requests
 from duckduckgo_search import DDGS
 from llm_utils import query_llm  # Your LLM wrapper
 import xml.etree.ElementTree as ET
+from pdb import set_trace
 
 # add persistent context memory
 
@@ -78,7 +79,9 @@ class PrincipalInvestigatorAgent:
                         code = self.code_writer_agent.create_code(sources, topic)
                         if self.verbose:
                             print("\nPI: Code Writer Agent created the following code:")
+                            print(" --------------------------- ")
                             print(code) 
+                            # set_trace()
                     else:
                         code = None
                         
@@ -253,12 +256,16 @@ class CodeWriterAgent:
     def create_code(self, sources, topic):
         print("********** Code Writer Agent: writing code")
         prompt = prompts.get_code_prompt(sources, topic)
-        return query_llm(prompt, temperature=LLM_CONFIG["temperature"]["coding"])
+        response = query_llm(prompt, temperature=LLM_CONFIG["temperature"]["coding"])
+        return utils.extract_code_only(response)
+        
 
     def improve_code(self, code, feedback):
         print("********** Code Writer Agent: improving code based on feedback")
         prompt = prompts.get_code_improve_prompt(code, feedback)
-        return query_llm(prompt, temperature=LLM_CONFIG["temperature"]["coding"])
+        response = query_llm(prompt, temperature=LLM_CONFIG["temperature"]["coding"])
+        return utils.extract_code_only(response)
+
 
 
 # Code Executor Agent
@@ -268,7 +275,7 @@ class CodeExecutorAgent:
 
         # extract only the code section using regex
         # code not being extracted properly
-        cleaned_code = self.extract_code(code)
+        cleaned_code = self.extract_code(code) # can remove this now as the code is cleaned within by the code writer agent itself
 
         if not cleaned_code.strip():
             print("Execution aborted: No valid Python code detected.")

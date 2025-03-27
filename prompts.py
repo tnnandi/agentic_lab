@@ -22,7 +22,6 @@ def get_browsing_prompt(topic, formatted_sources):
         )
 
 
-
 def get_research_draft_prompt(sources, topic):
     return (
         f"Based on the following sources:\n{sources}\n\n"
@@ -43,7 +42,7 @@ def get_code_prompt(sources, topic):
     return (
         f"Based on the following sources:\n{sources}\n"
         f"Create a Python code for {topic}. Include detailed comments explaining each step. "
-        f"If data is not available, create synthetic data."
+        f"If data is not available, first try to download public datasets, and if not found, create synthetic data."
     )
 
 def get_code_improve_prompt(code, feedback):
