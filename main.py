@@ -1,27 +1,36 @@
 # on laptop: conda activate /mnt/c/Users/tnandi/Downloads/ai_codes/ai_py3p12_env OR conda activate llm_env
 # on Polaris: module load conda;conda activate /lus/grand/projects/GeomicVar/tarak/ai_codes/ai_py3p12_env
 
-# Now using deepseek reasoning models hosted on Sophia/Polaris using Ollama. Will move to the ALCF inference endpoints when they make deepseek-r1 available
-# the 70b model workd fine, but the 671b model throws error related to the number of experts being used is more than that allowed by the ollama llama.cpp installation
+# Now using deepseek and qwen reasoning models hosted on Sophia/Polaris using Ollama. Will move to the ALCF inference endpoints when they make these models available
+# the deepseek 70b and qwen 32B models work fine, but the 671b model throws error related to the number of experts being used is more than that allowed by the ollama llama.cpp installation
+
+# to check if the ollama server is active try: curl --noproxy localhost http://localhost:11434/api/generate -d '{"model": "deepseek-r1:70b", "prompt": "Explain polygenic risk scores.", "temperature": 0.3}'
+# OR for the qwen model: curl --noproxy localhost http://localhost:11434/api/generate -d '{"model": "qwq:latest", "prompt": "Explain polygenic risk scores.", "temperature": 0.3}'
+
+# curl --noproxy localhost http://localhost:11434/api/generate -d '{"model": "codellama:latest", "prompt": "Write optimized matrix vector multiplication CUDA code without using cuBLAS", "temperature": 0.3}' -o output.jsonl
+
+# to list all models available (but may not be currently active): curl http://localhost:11434/api/tags | jq '.models[] | {name, parameter_size: .details.parameter_size, quant: .details.quantization_level}'
+# 
+
 
 # To do:
+# save all communications to a word doc
+# write out codes, outputs, reports from every round
+# ensure the research reports are professional with all relevant sections and references
+# add validation metrics using standard datasets 
+# ​Make sure the code execution agent only execute the code and nothing else
+# Try some coding benchmark problem execution 
+# Add multimodal capabilities 
+
+
 # try out the code written out manually to check its veracity; temporarily allow human in the loop to run the code and check for errors before proceeding
-# split the file into multiple files (one related to prompts, another to the definition of the agent classes etc)
-# create a list of predefined agent specific prompts
 # make the communication between different agents two-way (in the form of meetings)
 # make the prompts to the agents accessible easily as templates
-# have multiple rounds of code corrections
 # write out in a file all the outputs for every communication in every round
-# start from the topic prompt in round 0, but use the critic's feedback from the 2nd round onwards
 # add more capabilities to the agent class (check autogen, magentic-one, smolagents, amd langchain/langgraph agent types and classes and the communication patterns)
 # using an orchestrator-worker pattern, allow the orchestrator to create agents it can delegate jobs to instead of having these agents predetermined
-
-# to check if the ollama server is active try
-# curl --noproxy localhost http://localhost:11434/api/generate -d '{"model": "deepseek-r1:70b", "prompt": "Explain polygenic risk scores.", "temperature": 0.3}'
-
-
 # add options for research, code, or both
-# add validation metrics using standard datasets 
+
 
 from agents import (
     PrincipalInvestigatorAgent,
@@ -64,7 +73,6 @@ pi_agent = PrincipalInvestigatorAgent(
     verbose=True,
 )
 
-# topic = "Polygenic risk score calculation using publicly available GWAS and genotype data"
 topic = args.topic
 finalized = False
 

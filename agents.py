@@ -138,9 +138,26 @@ class PrincipalInvestigatorAgent:
                 utils.save_output(report, code, execution_result, self.iteration)
 
                 # if the code failed, improve it based on feedback
-                if self.mode in ["both", "code_only"] and "failed" in execution_result.lower():
+                # if self.mode in ["both", "code_only"] and "failed" in execution_result.lower():
+                #     print("\nPI: Code execution failed. Improving code based on feedback.")
+                #     code = self.code_writer_agent.improve_code(code, review_feedback)
+
+                if self.mode in ["both", "code_only"] and "failed" in execution_result.lower(): # ensure "failed" is present in responses from all failed instances
                     print("\nPI: Code execution failed. Improving code based on feedback.")
-                    code = self.code_writer_agent.improve_code(code, review_feedback)
+
+                    # extract user feedback from the execution result
+                    user_feedback_match = re.search(r"Feedback: (.*)", execution_result)
+                    user_feedback = user_feedback_match.group(1).strip() if user_feedback_match else ""
+
+                    # combine review feedback and user feedback into one string
+                    combined_feedback = review_feedback
+                    if user_feedback:
+                        combined_feedback += f"\n\nAdditional user feedback:\n{user_feedback}"
+
+                    # improve the code based on both sources
+                    code = self.code_writer_agent.improve_code(code, combined_feedback)
+
+
                 else:
                     print("\nPI: Pipeline execution complete. Finalizing.")
                     return report, code, True
@@ -289,9 +306,17 @@ class CodeExecutorAgent:
 
         user_input = input("Do you want to execute this code? (Yes/No): ").strip().lower()
 
+        # if user_input != "yes":
+        #     print("User opted to rewrite the code.")
+        #     return "User requested a code rewrite." # add abilities to request user input on why the code needs rewrite
+        
         if user_input != "yes":
-            print("User opted to rewrite the code.")
-            return "User requested a code rewrite." # add abilities to request user input on why the code needs rewrite
+            reason = input("You declined to run the code. Why? (optional feedback): ").strip()
+            feedback_msg = f"Execution failed: User declined to run the code."
+            if reason:
+                feedback_msg += f" Feedback: {reason}"
+            print("User opted not to execute the code.")
+            return feedback_msg
 
         try:
             # save the cleaned code to a temporary file
