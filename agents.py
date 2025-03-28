@@ -344,7 +344,8 @@ class CodeExecutorAgent:
                 missing_packages = self._detect_missing_packages(result.stderr)
                 if missing_packages:
                     print(f"Missing packages detected: {missing_packages}")
-                    self._install_packages(missing_packages)
+                    packages_to_install = self._resolve_package_names_with_llm(missing_packages)
+                    self._install_packages(packages_to_install)
 
                     # Retry executing the code after installing the packages
                     print("\nRetrying execution after installing missing packages...\n")
@@ -402,7 +403,7 @@ class CodeExecutorAgent:
 
         return extracted_code
 
-    def _detect_missing_packages(self, error_message):
+    def _detect_missing_packages(self, error_message): # doesn't use LLMs to find missing packages
         """
         Detect missing packages from the error message.
         """
@@ -412,6 +413,31 @@ class CodeExecutorAgent:
         if matches:
             missing_packages.update(matches)
         return list(missing_packages)
+    
+    def _resolve_package_names_with_llm(self, missing_modules):
+        """
+        Detect missing packages from the error message.
+        """
+        resolved_packages = []
+
+        for mod in missing_modules:
+            prompt = (
+                f"You are a Python environment assistant.\n"
+                f"The module '{mod}' was imported in the code, "
+                f"but it raised 'No module named {mod}'.\n"
+                f"What is the correct PyPI package name to install via pip for this module?\n"
+                f"Respond with only the pip package name, no explanations."
+            )
+
+            print(f"Asking LLM: What to install for missing module '{mod}'...")
+            try:
+                response = query_llm(prompt).strip()
+                resolved_packages.append(response)
+            except Exception as e:
+                print(f"LLM failed to resolve package for '{mod}': {e}")
+        
+        return resolved_packages
+
 
     def _install_packages(self, packages):
         """
