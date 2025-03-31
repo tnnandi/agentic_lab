@@ -54,6 +54,12 @@ Later we will add the capability for the agentic system to create custom agents 
 
 ---
 
+## Schematic of information and instruction flows
+
+![Schematic of information and instruction flows](Figs/agentic_lab_schematic.png)
+
+---
+
 ## **Installation and Setup**
 ### **Prerequisites**
 Ensure you have the following installed:
