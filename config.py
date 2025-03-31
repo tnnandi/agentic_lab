@@ -1,5 +1,5 @@
 # LLM_MODEL = "deepseek-r1:70b"
-MAX_ROUNDS = 2
+MAX_ROUNDS = 3
 
 LLM_CONFIG = {
     # "default_model": "deepseek-r1:70b",

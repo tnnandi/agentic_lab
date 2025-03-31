@@ -16,7 +16,10 @@
 # To do:
 # save all communications to a word doc
 # write out codes, outputs, reports from every round
+# ask for user inputs after each round to guide the workflow in the intended direction
 # ensure the research reports are professional with all relevant sections and references
+# allow downloading of datasets like TCGA, PDB, GTEx 
+
 # add validation metrics using standard datasets 
 # ​Make sure the code execution agent only execute the code and nothing else
 # Try some coding benchmark problem execution 
@@ -54,7 +57,7 @@ args = parser.parse_args()
 
 # initialize agents
 browsing_agent = BrowsingAgent()
-research_agent = ResearchAgent()
+research_agent = ResearchAgent(mode=args.mode) 
 code_writer_agent = CodeWriterAgent()
 code_executor_agent = CodeExecutorAgent()
 code_reviewer_agent = CodeReviewerAgent()

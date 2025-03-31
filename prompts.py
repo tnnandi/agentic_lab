@@ -17,6 +17,14 @@ def get_browsing_prompt(topic, formatted_sources):
     )
 
 
+def get_only_research_draft_prompt(sources, topic):
+    return (
+        f"Write a professional research report on the topic: '{topic}', using the following sources:\n\n"
+        f"{sources}\n\n"
+        # f"Structure it like a scientific paper with these sections: Abstract, Introduction, Methods, Results, Discussion, and Conclusion.\n"
+        f"Only include the final report in plain text. No markdown formatting or internal reasoning."
+    )
+
 def get_research_draft_prompt(sources, topic):
     return (
         f"Write a professional research report on the topic: '{topic}', using the following sources:\n\n"
@@ -24,7 +32,6 @@ def get_research_draft_prompt(sources, topic):
         f"Structure it like a scientific paper with these sections: Abstract, Introduction, Methods, Results, Discussion, and Conclusion.\n"
         f"Only include the final report in plain text. No markdown formatting or internal reasoning."
     )
-
 
 def get_research_improve_prompt(draft, feedback):
     return (

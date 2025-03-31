@@ -29,7 +29,7 @@ class PrincipalInvestigatorAgent:
             verbose=True,
     ):
         self.browsing_agent = browsing_agent
-        self.research_agent = research_agent
+        self.research_agent = research_agent 
         self.code_writer_agent = code_writer_agent
         self.code_executor_agent = code_executor_agent
         self.code_reviewer_agent = code_reviewer_agent
@@ -133,6 +133,20 @@ class PrincipalInvestigatorAgent:
                     if self.verbose:
                         print("\nPI: Critic Agent summarized the feedback:")
                         print(summary_feedback)
+                
+                elif self.mode == "research_only":
+                    summary_feedback = self.critic_agent.communicate_with_pi(critique_report, "")
+                    self.last_critique = {"document": critique_report, "code": ""}
+                    if self.verbose:
+                        print("\nPI: Critic Agent summarized the research-only feedback:")
+                        print(summary_feedback)
+
+                elif self.mode == "code_only":
+                    summary_feedback = self.critic_agent.communicate_with_pi("", critique_code)
+                    self.last_critique = {"document": "", "code": critique_code}
+                    if self.verbose:
+                        print("\nPI: Critic Agent summarized the code-only feedback:")
+                        print(summary_feedback)
 
                 # save outputs after every round
                 utils.save_output(report, code, execution_result, self.iteration)
@@ -159,8 +173,10 @@ class PrincipalInvestigatorAgent:
 
 
                 else:
-                    print("\nPI: Pipeline execution complete. Finalizing.")
-                    return report, code, True
+                    report = self.research_agent.improve_document(report, critique_report)
+                    
+                    # print("\nPI: Pipeline execution complete. Finalizing.")
+                    # return report, code, True
 
                 self.iteration += 1
 
@@ -256,9 +272,12 @@ class BrowsingAgent:
 
 # Research Agent
 class ResearchAgent:
+    def __init__(self, mode):
+        self.mode = mode
+        
     def draft_document(self, sources, topic):
         print(f"********* Research Agent: Drafting research report for topic '{topic}'")
-        prompt = prompts.get_research_draft_prompt(sources, topic)
+        prompt = prompts.get_only_research_draft_prompt(sources, topic) if self.mode == "research_only" else prompts.get_research_draft_prompt(topic)
         return query_llm(prompt, temperature=LLM_CONFIG["temperature"]["research"])
 
 
