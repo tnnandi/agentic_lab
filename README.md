@@ -8,7 +8,7 @@ Agentic Lab is a multi-agent system designed to automate scientific research whe
 - **Code Generation & Execution**: Generates Python code based on research findings, executes it, and refines it iteratively.
 - **Multi-Agent Collaboration**: Includes browsing, research, coding, execution, reviewing, and critique agents.
 - **Iterative Improvement**: Feedback-driven iterative refinement to enhance outputs.
-- **Can use open source LLMs with zero API costs**: Uses free DeepSeek R1 model and other open-source alternatives to avoid API expenses.
+- **Can use open weights LLMs with zero API costs**: Uses free DeepSeek R1, Qwen and other open-weights alternatives to avoid API expenses.
 - **Privacy-Preserving Computation**: Runs locally or on secure environments without sending data to third-party servers.
 ## Types of Agents
 
