@@ -277,7 +277,7 @@ class ResearchAgent:
         
     def draft_document(self, sources, topic):
         print(f"********* Research Agent: Drafting research report for topic '{topic}'")
-        prompt = prompts.get_only_research_draft_prompt(sources, topic) if self.mode == "research_only" else prompts.get_research_draft_prompt(topic)
+        prompt = prompts.get_only_research_draft_prompt(sources, topic) if self.mode == "research_only" else prompts.get_research_draft_prompt(sources, topic)
         return query_llm(prompt, temperature=LLM_CONFIG["temperature"]["research"])
 
 
@@ -366,11 +366,19 @@ class CodeExecutorAgent:
                     packages_to_install = self._resolve_package_names_with_llm(missing_packages)
                     self._install_packages(packages_to_install)
 
-                    # Retry executing the code after installing the packages
-                    print("\nRetrying execution after installing missing packages...\n")
-                    result = subprocess.run(
-                        ["python", temp_file], capture_output=True, text=True
-                    )
+                    # Ask user again before retrying execution
+                    user_retry = input("\nPackages were installed or fixes were made. Do you want to retry executing the code? (Yes/No): ").strip().lower()
+                    if user_retry != "yes":
+                        reason = input("You declined to retry running the improved code. Why? (optional feedback): ").strip()
+                        feedback_msg = f"Execution skipped after fix: User declined to run improved code."
+                        if reason:
+                            feedback_msg += f" Feedback: {reason}"
+                        print("User opted not to retry the code.")
+                        return feedback_msg
+
+                    # Proceed with re-execution
+                    print("\nRetrying execution after fixes...\n")
+                    result = subprocess.run(["python", temp_file], capture_output=True, text=True)
 
             if result.returncode == 0:
                 print("Execution succeeded:")
