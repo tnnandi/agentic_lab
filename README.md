@@ -130,6 +130,7 @@ Now using deepseek and Qwen reasoning models hosted on Sophia/Polaris using Olla
 ### To do:
 
 - [x] Add options to carry out research, or write code, or both.
+- [ ] Use a structured output for returning responses at each step (particularly for coding) for code execution to be successful
 - [ ] Adding persistent context memory (e.g., to prevent past mistakes currently the multiple rounds for improvement often do not recognize mistakes in the previous rounds)
 - [ ] Evaluate the framework for a wide variety of tasks relevant for biomedicine 
 - [ ] Allow asking intermediary questions to the user and seek their feedback (add option to turn it off)
