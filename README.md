@@ -109,7 +109,7 @@ ollama run deepseek-r1:70b
 Example: python main.py --topic="Obtaining cancer survival outcome from bulk RNASeq and histology embeddings"
 ```
 
-Sample output files (research reports, code, etc.) can be downloaded from [this link](https://drive.google.com/drive/folders/1POuQGOqttcD7fNEBJzYD8ga45cWX4x-z?usp=sharing). 
+<!-- Sample output files (research reports, code, etc.) can be downloaded from [this link](https://drive.google.com/drive/folders/1POuQGOqttcD7fNEBJzYD8ga45cWX4x-z?usp=sharing). -->
 
 #### Note: 
 Now using deepseek and Qwen reasoning models hosted on Sophia/Polaris using Ollama (Q4_K_M quantized versions). Will move to the ALCF inference endpoints when they make deepseek-r1 available.
