@@ -209,7 +209,7 @@ class BrowsingAgent:
             f"\n[{source}]\n" + "\n".join(links)
             for source, links in results.items() if links
         )
-
+        # set_trace()
         prompt = prompts.get_browsing_prompt(topic, formatted_sources)
         summary = query_llm(prompt)
 

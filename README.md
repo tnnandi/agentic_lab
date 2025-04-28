@@ -130,7 +130,11 @@ Now using deepseek and Qwen reasoning models hosted on Sophia/Polaris using Olla
 ### To do:
 
 - [x] Add options to carry out research, or write code, or both.
-- [ ] Adding persistent context memory (e.g., to prevent past mistakes; currently the multiple rounds for improvement often do not recognize mistakes in the previous rounds)
+- [ ] Adding persistent context memory (e.g., to prevent past mistakes currently the multiple rounds for improvement often do not recognize mistakes in the previous rounds)
+- [ ] Evaluate the framework for a wide variety of tasks relevant for biomedicine 
 - [ ] Allow asking intermediary questions to the user and seek their feedback (add option to turn it off)
-- [ ] Create the agents dynamically
+- [ ] Utilize MCP instead of API calls to connect to external tools and databases
+- [ ] Create the agents dynamically; allow agents to create their own agents on the fly
 - [ ] Add additional browser agents for medRxiv, bioRxiv, and google scholar
+- [ ] Carry out automated scRNASeq data curation, QC, Geneformer tokenization, fine tuning and in-silico perturbation
+- [ ] Add capabalities to use local filesystem for research
