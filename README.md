@@ -112,8 +112,9 @@ Example: python main.py --topic="Obtaining cancer survival outcome from bulk RNA
 <!-- Sample output files (research reports, code, etc.) can be downloaded from [this link](https://drive.google.com/drive/folders/1POuQGOqttcD7fNEBJzYD8ga45cWX4x-z?usp=sharing). -->
 
 #### Note: 
-Now using deepseek and Qwen reasoning models hosted on Sophia/Polaris using Ollama (Q4_K_M quantized versions). Will move to the ALCF inference endpoints when they make deepseek-r1 available.
+1. Now using deepseek and Qwen reasoning models hosted on Sophia/Polaris using Ollama (Q4_K_M quantized versions). Will move to the ALCF inference endpoints when they make deepseek-r1 available.
 <!-- The 70b model works fine, but the 671b model throws error related to the number of experts being used is more than that allowed by the ollama llama.cpp installation -->
+2. If the code writer agent outputs code that includes its thoughts outside of comments (causing it to fail during execution), please provide that feedback to the agent so it can rewrite the code in the appropriate format before the execution agent takes over.
 
 ---
 
