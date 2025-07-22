@@ -47,13 +47,34 @@ from agents import (
 import config
 import utils
 import argparse
+import os
 
 # Argument parser for topic input
 parser = argparse.ArgumentParser(description="Run Agentic Lab with a specified research topic.")
 parser.add_argument("--topic", type=str, required=True, help="Specify the research topic.")
+parser.add_argument("--pdfs", nargs="+", help="Specify one or more PDF files to include in the research.")
+parser.add_argument("--links", nargs="+", help="Specify one or more URLs to include in the research.")
 parser.add_argument("--quick_search", action="store_true", help="Carry out quick search without extensive research.")
 parser.add_argument("--mode", choices=["research_only", "code_only", "both"], default="both", help="Choose task mode: only generate research report, only code, or both (default)")
 args = parser.parse_args()
+
+# Process PDF files if provided
+pdf_content = ""
+if args.pdfs:
+    pdf_content = utils.process_pdfs(args.pdfs)
+    if pdf_content:
+        print(f"Successfully processed {len(args.pdfs)} PDF file(s)")
+    else:
+        print("Warning: No PDF content could be extracted")
+
+# Process links if provided
+link_content = ""
+if args.links:
+    link_content = utils.process_links(args.links)
+    if link_content:
+        print(f"Successfully processed {len(args.links)} link(s)")
+    else:
+        print("Warning: No link content could be extracted")
 
 # initialize agents
 browsing_agent = BrowsingAgent()
@@ -63,6 +84,7 @@ code_executor_agent = CodeExecutorAgent()
 code_reviewer_agent = CodeReviewerAgent()
 critic_agent = CriticAgent()
 
+# Pass PDF content to the PI agent
 pi_agent = PrincipalInvestigatorAgent(
     browsing_agent,
     research_agent,
@@ -73,7 +95,9 @@ pi_agent = PrincipalInvestigatorAgent(
     max_rounds=config.MAX_ROUNDS,
     quick_search=args.quick_search,
     mode=args.mode,
-    verbose=True,
+    verbose=True, # set to False to suppress verbose output
+    pdf_content=pdf_content,  # Add PDF content
+    link_content=link_content,  # Add link content
 )
 
 topic = args.topic

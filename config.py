@@ -4,7 +4,8 @@ MAX_ROUNDS = 1
 LLM_CONFIG = {
     # "default_model": "deepseek-r1:70b",
     # "default_model": "deepseek-r1:671b",
-    "default_model": "qwq:latest",
+    # "default_model": "qwq:latest",
+    "default_model": "llama3.1:latest",
     "temperature": {
         "research": 0.3,
         "coding": 0.2,

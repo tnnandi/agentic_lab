@@ -7,9 +7,11 @@ from config import LLM_CONFIG
 import re
 import requests
 from duckduckgo_search import DDGS
-from llm_utils import query_llm  # Your LLM wrapper
 import xml.etree.ElementTree as ET
 from pdb import set_trace
+import argparse
+import json
+from bs4 import BeautifulSoup
 
 # add persistent context memory
 
@@ -27,6 +29,8 @@ class PrincipalInvestigatorAgent:
             quick_search=False,
             mode="both",
             verbose=True,
+            pdf_content="",  # Add PDF content parameter
+            link_content="",  # Add link content parameter
     ):
         self.browsing_agent = browsing_agent
         self.research_agent = research_agent 
@@ -39,6 +43,8 @@ class PrincipalInvestigatorAgent:
         self.quick_search = quick_search
         self.mode = mode
         self.verbose = verbose
+        self.pdf_content = pdf_content  # Store PDF content
+        self.link_content = link_content  # Store link content
         
 
     def coordinate(self, topic):
@@ -60,13 +66,13 @@ class PrincipalInvestigatorAgent:
                 )
 
                 if self.iteration == 0:  # use the topic prompt for the first round of iteration
-                    sources = self.browsing_agent.browse(topic)
+                    sources = self.browsing_agent.browse(topic, self.pdf_content, self.link_content)
                     if self.verbose:
-                        print("PI: Browsing Agent provided the following sources:")
-                        print(sources)
+                        print("PI: Browsing Agent provided the following sources (showing first 1000 characters):")
+                        print(sources[:5000])
                         print("------------------------------------")
                     if self.mode in ["research_only", "both"]:
-                        raw_report = self.research_agent.draft_document(sources, topic)
+                        raw_report = self.research_agent.draft_document(sources, topic, self.pdf_content, self.link_content)
                         print("Cleaning up report to a professional format")
                         report = utils.clean_report(raw_report)
                     else:
@@ -76,7 +82,7 @@ class PrincipalInvestigatorAgent:
                         print(report)
                     
                     if self.mode in ["code_only", "both"]:
-                        code = self.code_writer_agent.create_code(sources, topic)
+                        code = self.code_writer_agent.create_code(sources, topic, self.pdf_content, self.link_content)
                         if self.verbose:
                             print("\nPI: Code Writer Agent created the following code:")
                             print(" --------------------------- ")
@@ -193,27 +199,39 @@ class BrowsingAgent_Old:
         return query_llm(prompt)
 
 class BrowsingAgent:
-    def browse(self, topic):
+    def browse(self, topic, pdf_content="", link_content=""):
         print(f"********* Browsing Agent: Gathering sources for topic '{topic}'")
 
         results = {
-            "PubMed": self.search_pubmed(topic),
-            "DuckDuckGo": self.search_duckduckgo(topic),
-            "arXiv": self.search_arxiv(topic),
+            # "PubMed": self.search_pubmed(topic),
+            # "DuckDuckGo": self.search_duckduckgo(topic),
+            # "arXiv": self.search_arxiv(topic),
             # "GTEx": [f"https://gtexportal.org/home/search/{topic}"],
             # "GeneCards": [f"https://www.genecards.org/Search/Keyword?queryString={topic}"],
-            "Semantic Scholar": self.search_semantic_scholar(topic)
+            # "Semantic Scholar": self.search_semantic_scholar(topic)
         }
 
         formatted_sources = "\n".join(
             f"\n[{source}]\n" + "\n".join(links)
             for source, links in results.items() if links
         )
+        
+        # Add PDF content to sources if available
+        if pdf_content:
+            formatted_sources += f"\n\n[PDF Documents]\n{pdf_content}"
+        
+        # Add link content to sources if available
+        if link_content:
+            formatted_sources += f"\n\n[Link Content]\n{link_content}"
+        
+        # Fetch content from HuggingFace and other special URLs
+        enhanced_sources = self.fetch_special_url_content(formatted_sources)
+        
         # set_trace()
-        prompt = prompts.get_browsing_prompt(topic, formatted_sources)
+        prompt = prompts.get_browsing_prompt(topic, enhanced_sources)
         summary = query_llm(prompt)
 
-        return summary + "\n\nSources:\n" + formatted_sources
+        return summary + "\n\nSources:\n" + enhanced_sources
 
     def search_duckduckgo(self, query, max_results=5):
         try:
@@ -270,14 +288,203 @@ class BrowsingAgent:
             print(f"Semantic Scholar search error: {e}")
             return []
 
+    def fetch_special_url_content(self, sources):
+        """
+        Attempts to fetch content from URLs that might require special handling
+        (e.g., HuggingFace, GitHub, raw GitHub, etc.) and append it to the sources.
+        """
+        enhanced_sources = sources
+        # Look for URLs that might be HuggingFace or GitHub
+        url_patterns = [
+            r"huggingface\.co/models/[^/]+/blob/[^/]+",
+            r"github\.com/[^/]+/blob/[^/]+",
+            r"raw\.githubusercontent\.com/[^/]+/[^/]+",
+            r"arxiv\.org/abs/[^/]+",
+            r"pubmed\.ncbi\.nlm\.nih\.gov/[^/]+",
+            r"duckduckgo\.com/[^/]+",
+            r"eutils\.ncbi\.nlm\.nih\.gov/entrez/eutils/esearch\.fcgi"
+        ]
+
+        for pattern in url_patterns:
+            matches = re.findall(pattern, enhanced_sources)
+            for match in matches:
+                if "huggingface.co" in match:
+                    enhanced_sources += self.extract_huggingface_content(match)
+                elif "github.com" in match:
+                    enhanced_sources += self.extract_github_content(match)
+                elif "raw.githubusercontent.com" in match:
+                    enhanced_sources += self.extract_github_content(match)
+                elif "arxiv.org" in match:
+                    enhanced_sources += self.extract_arxiv_content(match)
+                elif "pubmed.ncbi.nlm.nih.gov" in match:
+                    enhanced_sources += self.extract_pubmed_content(match)
+                elif "duckduckgo.com" in match:
+                    enhanced_sources += self.extract_duckduckgo_content(match)
+                elif "eutils.ncbi.nlm.nih.gov" in match:
+                    enhanced_sources += self.extract_pubmed_content(match)
+
+        return enhanced_sources
+
+    def extract_huggingface_content(self, url):
+        """Extract content from HuggingFace URLs"""
+        try:
+            # Convert blob URL to resolve URL
+            resolve_url = url.replace('/blob/', '/resolve/')
+            
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            }
+            
+            response = requests.get(resolve_url, headers=headers, timeout=10)
+            if response.status_code == 200:
+                content = response.text
+                
+                # Try to parse as Jupyter notebook
+                if url.endswith('.ipynb'):
+                    return self.parse_jupyter_notebook(content)
+                else:
+                    return content[:2000] + "..." if len(content) > 2000 else content
+            else:
+                print(f"Failed to fetch HuggingFace content: {response.status_code}")
+                return None
+                
+        except Exception as e:
+            print(f"Error fetching HuggingFace content: {e}")
+            return None
+
+
+    def extract_github_content(self, url):
+        """Extract content from GitHub URLs"""
+        try:
+            # Convert blob URL to raw URL
+            raw_url = url.replace('github.com', 'raw.githubusercontent.com').replace('/blob/', '/')
+            
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            }
+            
+            response = requests.get(raw_url, headers=headers, timeout=10)
+            if response.status_code == 200:
+                content = response.text
+                return content[:2000] + "..." if len(content) > 2000 else content
+            else:
+                print(f"Failed to fetch GitHub content: {response.status_code}")
+                return None
+                
+        except Exception as e:
+            print(f"Error fetching GitHub content: {e}")
+            return None
+
+
+    def extract_basic_content(self, url):
+        """Extract basic web content"""
+        try:
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            }
+            
+            response = requests.get(url, headers=headers, timeout=10)
+            if response.status_code == 200:
+                soup = BeautifulSoup(response.content, 'html.parser')
+                text_content = soup.get_text()
+                return text_content[:2000] + "..." if len(text_content) > 2000 else text_content
+            else:
+                print(f"Failed to fetch basic content: {response.status_code}")
+                return None
+                
+        except Exception as e:
+            print(f"Error fetching basic content: {e}")
+            return None
+
+
+    def parse_jupyter_notebook(self, content):
+        """Parse Jupyter notebook content"""
+        try:
+            notebook = json.loads(content)
+            cells = notebook.get('cells', [])
+            
+            extracted_text = []
+            for i, cell in enumerate(cells):
+                cell_type = cell.get('cell_type', '')
+                source = cell.get('source', [])
+                
+                if isinstance(source, list):
+                    text = ''.join(source)
+                else:
+                    text = str(source)
+                
+                if cell_type == 'markdown':
+                    extracted_text.append(f"## Cell {i+1} (Markdown)\n{text}\n")
+                elif cell_type == 'code':
+                    extracted_text.append(f"## Cell {i+1} (Code)\n```python\n{text}\n```\n")
+            
+            return '\n'.join(extracted_text)
+        except Exception as e:
+            print(f"Error parsing notebook: {e}")
+            return content
+
+    def extract_arxiv_content(self, url):
+        try:
+            base_url = "http://export.arxiv.org/api/query"
+            params = {
+                "search_query": f"all:{url.split('/')[-1]}", # Assuming the last part of the URL is the ID
+                "start": 0,
+                "max_results": 1 # Fetch only one result
+            }
+            response = requests.get(base_url, params=params)
+            root = ET.fromstring(response.content)
+            entry = root.find("{http://www.w3.org/2005/Atom}entry")
+            if entry:
+                title = entry.find("{http://www.w3.org/2005/Atom}title").text
+                summary = entry.find("{http://www.w3.org/2005/Atom}summary").text
+                return f"\n[ArXiv Paper]\n{url}\n{title}\n{summary}\n"
+            else:
+                return f"\n[ArXiv Paper]\n{url}\nCould not find paper summary.\n"
+        except Exception as e:
+            print(f"Error fetching ArXiv content: {e}")
+            return f"\n[ArXiv Paper]\n{url}\nCould not fetch ArXiv content.\n"
+
+    def extract_pubmed_content(self, url):
+        try:
+            url = url.replace("pubmed.ncbi.nlm.nih.gov", "eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi")
+            params = {
+                "db": "pubmed",
+                "term": url.split("/")[-1], # Assuming the last part of the URL is the ID
+                "retmode": "json",
+                "retmax": 1
+            }
+            res = requests.get(url, params=params)
+            data = res.json()
+            if data.get("esearchresult", {}).get("idlist"):
+                pid = data["esearchresult"]["idlist"][0]
+                return f"\n[PubMed Article]\n{url}\nCould not find article summary.\n"
+            else:
+                return f"\n[PubMed Article]\n{url}\nCould not find article summary.\n"
+        except Exception as e:
+            print(f"Error fetching PubMed content: {e}")
+            return f"\n[PubMed Article]\n{url}\nCould not fetch PubMed content.\n"
+
+    def extract_duckduckgo_content(self, url):
+        try:
+            with DDGS() as ddgs:
+                results = ddgs.text(url)
+                if results:
+                    return f"\n[DuckDuckGo Search]\n{url}\n{results[0]['body']}\n"
+                else:
+                    return f"\n[DuckDuckGo Search]\n{url}\nCould not find search results.\n"
+        except Exception as e:
+            print(f"Error fetching DuckDuckGo content: {e}")
+            return f"\n[DuckDuckGo Search]\n{url}\nCould not fetch DuckDuckGo content.\n"
+
+
 # Research Agent
 class ResearchAgent:
     def __init__(self, mode):
         self.mode = mode
         
-    def draft_document(self, sources, topic):
+    def draft_document(self, sources, topic, pdf_content="", link_content=""):
         print(f"********* Research Agent: Drafting research report for topic '{topic}'")
-        prompt = prompts.get_only_research_draft_prompt(sources, topic) if self.mode == "research_only" else prompts.get_research_draft_prompt(sources, topic)
+        prompt = prompts.get_only_research_draft_prompt(sources, topic, pdf_content, link_content) if self.mode == "research_only" else prompts.get_research_draft_prompt(sources, topic, pdf_content, link_content)
         return query_llm(prompt, temperature=LLM_CONFIG["temperature"]["research"])
 
 
@@ -289,9 +496,9 @@ class ResearchAgent:
 
 # Code Writer Agent
 class CodeWriterAgent:
-    def create_code(self, sources, topic):
+    def create_code(self, sources, topic, pdf_content="", link_content=""):
         print("********** Code Writer Agent: writing code")
-        prompt = prompts.get_code_prompt(sources, topic)
+        prompt = prompts.get_code_prompt(sources, topic, pdf_content, link_content)
         response = query_llm(prompt, temperature=LLM_CONFIG["temperature"]["coding"])
         return utils.extract_code_only(response)
         

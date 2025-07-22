@@ -1,3 +1,15 @@
+import os
+import re
+from datetime import datetime
+from docx import Document
+from duckduckgo_search import DDGS
+from bs4 import BeautifulSoup
+import requests
+from llm_utils import query_llm
+import prompts
+import io
+
+
 def get_quick_search_summary_prompt(query, raw_text):
     return (
         f"You are a smart research assistant. Based on the search results below, provide a factual and concise answer to the question.\n\n"
@@ -21,14 +33,15 @@ def get_only_research_draft_prompt(sources, topic):
     return (
         f"Write a professional research report on the topic: '{topic}', using the following sources:\n\n"
         f"{sources}\n\n"
-        # f"Structure it like a scientific paper with these sections: Abstract, Introduction, Methods, Results, Discussion, and Conclusion.\n"
         f"Only include the final report in plain text. No markdown formatting or internal reasoning."
     )
 
-def get_research_draft_prompt(sources, topic):
+def get_research_draft_prompt(sources, topic, pdf_content="", link_content=""):
+    pdf_section = f"\n\nPDF Documents:\n{pdf_content}\n" if pdf_content else ""
+    link_section = f"\n\nLink Content:\n{link_content}\n" if link_content else ""
     return (
         f"Write a professional research report on the topic: '{topic}', using the following sources:\n\n"
-        f"{sources}\n\n"
+        f"{sources}{pdf_section}{link_section}\n\n"
         f"Structure it like a scientific paper with these sections: Abstract, Introduction, Methods, Results, Discussion, and Conclusion.\n"
         f"Only include the final report in plain text. No markdown formatting or internal reasoning."
     )
@@ -42,10 +55,12 @@ def get_research_improve_prompt(draft, feedback):
     )
 
 
-def get_code_prompt(sources, topic):
+def get_code_prompt(sources, topic, pdf_content="", link_content=""):
+    pdf_section = f"\n\nPDF Documents:\n{pdf_content}\n" if pdf_content else ""
+    link_section = f"\n\nLink Content:\n{link_content}\n" if link_content else ""
     return (
         f"You are a professional Python developer. Based on the following sources:\n\n"
-        f"{sources}\n\n"
+        f"{sources}{pdf_section}{link_section}\n\n"
         f"Your task is to write Python code to accomplish this objective:\n"
         f"\"{topic}\"\n\n"
         f"Requirements:\n"
