@@ -6,7 +6,8 @@ LLM_CONFIG = {
     "temperature": {
         "research": 0.3,
         "coding": 0.2,
-        "critique": 0.4,
+        "critic": 0.4,
         "execution": 0.1,
+        "review": 0.1,
     },
 }

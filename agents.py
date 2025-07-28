@@ -124,7 +124,7 @@ class PrincipalInvestigatorAgent:
                     sources = self.browsing_agent.browse(topic, self.pdf_content, self.link_content, self.files_dir_content)
                     if self.verbose:
                         print("PI: Browsing Agent provided the following sources:")
-                        print(sources)
+                        print(sources[:1000])
                         print("------------------------------------")
 
                     # The PI agent will now plan the next steps and print the plan to screen
@@ -132,20 +132,39 @@ class PrincipalInvestigatorAgent:
                     print("PI: Created the following plan:")
                     print(plan)
                     print("------------------------------------")
+                    
 
-                    # Ask the user if they want to proceed with the plan, and recommned changes if needed
-                    user_input = input("PI: Do you want to proceed with the plan? (y/n): ")
-                    if user_input == "n":
-                        print("PI: User requested changes to the plan.")
-                        changes = input("PI: Please input the suggestedchanges: ")
-                        # The PI should reason about the changes and create a new plan
-                        # print the reasoining used to create the new plan
-                        print("PI: Reasoning about the changes and creating a new plan...")
+                    # # Ask the user if they want to proceed with the plan, and recommned changes if needed
+                    # user_input = input("PI: Do you want to proceed with the plan? (y/n): ")
+                    # if user_input == "n":
+                    #     print("PI: User requested changes to the plan.")
+                    #     changes = input("PI: Please input the suggestedchanges: ")
+                    #     # The PI should reason about the changes and create a new plan
+                    #     # print the reasoining used to create the new plan
+                    #     print("PI: Reasoning about the changes and creating a new plan...")
                         
-                        plan = self.create_plan(sources, topic, self.mode, changes)
-                        print("PI: Created the following plan:")
-                        print(plan)
-                        print("------------------------------------")
+                    #     plan = self.create_plan(sources, topic, self.mode, changes)
+                    #     print("PI: Created the following plan:")
+                    #     print(plan)
+                    #     print("------------------------------------")
+
+                    while True:
+                        user_input = input("PI: Do you want to proceed with the plan? (y/n): ").lower().strip()
+                        if user_input == "y":
+                            print("PI: User agreed to the plan.")
+                            break
+                        elif user_input == "n":
+                            print("PI: User requested changes to the plan.")
+                            changes = input("PI: Please input the suggested changes: ")
+                            # The PI should reason about the changes and create a new plan
+                            print("PI: Reasoning about the changes and creating a new plan...")
+                            
+                            plan = self.create_plan(sources, topic, self.mode, changes)
+                            print("PI: Created the following imrpoved plan:")
+                            print(plan)
+                            print("------------------------------------")
+                        else:
+                            print("PI: Invalid input. Please enter 'y' or 'n'.")
 
                     # The above plan should also be communicated to the other agents
                     self.research_agent.plan = plan
@@ -284,6 +303,7 @@ class BrowsingAgent_Old:
         prompt = prompts.get_browsing_prompt(topic)
         return query_llm(prompt)
 
+# Connect the browsing agent to the BioMCP server
 class BrowsingAgent:
     def __init__(self, verbose=True):
         self.verbose = verbose
@@ -325,13 +345,13 @@ class BrowsingAgent:
 
         if self.verbose:# print full content of each source
             for source in sources:
-                print(f"Full content of {source}:")
-                print(source)
+                print(f"Full content of {source[:100]}...")
+                print(source[100:])
                 print("--------------------------------")
         
         if self.verbose:
             print("Browsing Agent: Sources gathered:")
-            print(formatted_sources)
+            print(formatted_sources[:1000])
         
         return formatted_sources
 
@@ -727,28 +747,7 @@ class CodeWriterAgent:
         plan_section = f"\n\nPI Agent's Plan:\n{self.plan}\n" if self.plan else ""
         
         # First, create a coding plan
-        plan_prompt = f"""
-        You are a professional Python developer.
-        
-        Based on the following sources:
-        {sources}
-        
-        {plan_section}
-        
-        Your task is to write Python code to accomplish this objective:
-        "{topic}"
-        
-        BEFORE writing the actual code, create a detailed plan explaining:
-        1. What libraries/packages you will use and why
-        2. The overall structure and approach you will take
-        3. Key functions/classes you will create
-        4. How you will handle data (synthetic generation, public datasets, etc.)
-        5. Error handling strategy
-        6. Expected outputs and success criteria
-        
-        Provide a clear, step-by-step plan that a user can review and approve before you write the actual code.
-        """
-        
+        plan_prompt = prompts.get_coding_plan_prompt(sources, topic, plan_section)
         coding_plan = query_llm(plan_prompt, temperature=LLM_CONFIG["temperature"]["coding"])
         
         # Show the plan to user and get approval
@@ -763,16 +762,7 @@ class CodeWriterAgent:
                 feedback = input("What improvements or changes would you like to see in the plan? ")
                 
                 # Improve the plan based on user feedback
-                improved_plan_prompt = f"""
-                The user provided the following feedback on the coding plan:
-                "{feedback}"
-                
-                Original plan:
-                {coding_plan}
-                
-                Please revise the plan based on the user's feedback. Address their concerns and incorporate their suggestions.
-                """
-                
+                improved_plan_prompt = prompts.get_improved_coding_plan_prompt(feedback, coding_plan)
                 coding_plan = query_llm(improved_plan_prompt, temperature=LLM_CONFIG["temperature"]["coding"])
                 
                 print("\n========= Revised Code Writing Plan =========\n")
@@ -785,36 +775,7 @@ class CodeWriterAgent:
                 user_input = input("Do you approve this coding plan? (y/n): ").strip().lower()
         
         # Now write the actual code based on the approved plan
-        code_prompt = f"""
-        You are a professional Python developer.
-        
-        Based on the following sources:
-        {sources}
-        
-        {plan_section}
-        
-        Approved coding plan:
-        {coding_plan}
-        
-        Your task is to write Python code to accomplish this objective:
-        "{topic}"
-        
-        Requirements:
-        - ONLY output valid Python code.
-        - DO NOT include any thoughts, explanations, or markdown outside the code.
-        - WRAP the code in triple backticks as follows:
-        ```python
-        <your code here>
-        ```
-        - INCLUDE inline comments to explain the logic clearly.
-        - Follow the approved plan exactly.
-        - Use appropriate libraries based on the task and file types mentioned.
-        - Include error handling.
-        - If data is missing, first search for public datasets, and if not found, generate synthetic data as needed.
-        
-        Write the code according to the approved plan.
-        """
-        
+        code_prompt = prompts.get_code_writing_prompt(sources, topic, plan_section, coding_plan)
         response = query_llm(code_prompt, temperature=LLM_CONFIG["temperature"]["coding"])
         return utils.extract_code_only(response)
         
@@ -852,13 +813,13 @@ class CodeExecutorAgent:
         print(cleaned_code)
         print("*********** Code ends here ***********\n")
 
-        user_input = input("Do you want to execute this code? (Yes/No): ").strip().lower()
+        user_input = input("Do you want to execute this code? (y/n): ").strip().lower()
 
         # if user_input != "yes":
         #     print("User opted to rewrite the code.")
         #     return "User requested a code rewrite." # add abilities to request user input on why the code needs rewrite
         
-        if user_input != "yes":
+        if user_input != "y":
             reason = input("You declined to run the code. Why? (optional feedback): ").strip()
             feedback_msg = f"Execution failed: User declined to run the code."
             if reason:
@@ -896,8 +857,8 @@ class CodeExecutorAgent:
                     self._install_packages(packages_to_install)
 
                     # Ask user again before retrying execution
-                    user_retry = input("\nPackages were installed or fixes were made. Do you want to retry executing the code? (Yes/No): ").strip().lower()
-                    if user_retry != "yes":
+                    user_retry = input("\nPackages were installed or fixes were made. Do you want to retry executing the code? (y/n): ").strip().lower()
+                    if user_retry != "y":
                         reason = input("You declined to retry running the improved code. Why? (optional feedback): ").strip()
                         feedback_msg = f"Execution skipped after fix: User declined to run improved code."
                         if reason:
@@ -1040,18 +1001,18 @@ class CriticAgent:
     def review_document(self, document, sources):
         if self.verbose:
             print("********** Critic Agent: reviewing document")
-        prompt = prompts.get_critic_document_prompt(document, sources)
+        prompt = prompts.get_document_critique_prompt(document, sources)
         return query_llm(prompt, temperature=LLM_CONFIG["temperature"]["critic"])
 
     def review_code_execution(self, code, execution_result):
         if self.verbose:
             print("********** Critic Agent: reviewing code execution")
-        prompt = prompts.get_critic_code_prompt(code, execution_result)
+        prompt = prompts.get_code_execution_review_prompt(code, execution_result)
         return query_llm(prompt, temperature=LLM_CONFIG["temperature"]["critic"])
 
     def communicate_with_pi(self, report_feedback, code_feedback):
         if self.verbose:
             print("********** Critic Agent: communicating with PI")
-        prompt = prompts.get_critic_pi_prompt(report_feedback, code_feedback)
+        prompt = prompts.get_summary_feedback_prompt(report_feedback, code_feedback)
         return query_llm(prompt, temperature=LLM_CONFIG["temperature"]["critic"])
 

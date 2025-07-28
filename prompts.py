@@ -130,3 +130,62 @@ def get_summary_feedback_prompt(report_feedback, code_feedback):
         f"Code Feedback:\n{code_feedback}\n\n"
         f"Clearly highlight what should be improved in the next iteration."
     )
+
+
+def get_coding_plan_prompt(sources, topic, plan_section=""):
+    return (
+        f"You are a professional Python developer with a strong understanding of the Python programming language and its libraries. "
+        f"You are also an expert on Bioinformatics and Genomics.\n\n"
+        f"Based on the following sources:\n"
+        f"{sources}\n\n"
+        f"{plan_section}\n\n"
+        f"Your task is to write Python code to accomplish this objective:\n"
+        f"\"{topic}\"\n\n"
+        f"BEFORE writing the actual code, create a detailed plan explaining:\n"
+        f"What libraries/packages you will use and why\n"
+        f"What files you will use and why\n"
+        f"The overall structure and approach you will take\n"
+        f"Key functions/classes you will create\n"
+        f"How you will handle data (synthetic generation, public datasets, etc.)\n"
+        f"Error handling strategy\n\n"
+        f"Provide a clear, step-by-step plan that a user can review and approve before you write the actual code."
+    )
+
+
+def get_improved_coding_plan_prompt(feedback, coding_plan):
+    return (
+        f"The user provided the following feedback on the coding plan:\n"
+        f"\"{feedback}\"\n\n"
+        f"Original plan:\n"
+        f"{coding_plan}\n\n"
+        f"Please revise the plan based on the user's feedback. Address their concerns and incorporate their suggestions."
+    )
+
+
+def get_code_writing_prompt(sources, topic, plan_section, coding_plan):
+    return (
+        f"You are a professional Python developerwith a strong understanding of the Python programming language and its libraries. "
+        f"You are also an expert on Bioinformatics and Genomics.\n\n"
+        f"Based on the following sources:\n"
+        f"{sources}\n\n"
+        f"{plan_section}\n\n"
+        f"Approved coding plan:\n"
+        f"{coding_plan}\n\n"
+        f"Your task is to write Python code to accomplish this objective:\n"
+        f"\"{topic}\"\n\n"
+        f"Requirements:\n"
+        f"- ONLY output valid Python code.\n"
+        f"- ONLY use correct file paths and file names and not placeholder names.\n"
+        f"- DO NOT include any thoughts, explanations, or markdown outside the code.\n"
+        f"- WRAP the code in triple backticks as follows:\n"
+        f"```python\n"
+        f"<your code here>\n"
+        f"```\n"
+        f"- INCLUDE inline comments to explain the logic clearly.\n"
+        f"- Follow the approved plan exactly.\n"
+        f"- Use appropriate libraries based on the task and file types mentioned.\n"
+        f"- Include error handling.\n"
+    )
+
+
+
