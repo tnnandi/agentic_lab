@@ -10,7 +10,7 @@ Agentic Lab is a multi-agent system designed to automate scientific research whe
 - **Iterative Improvement**: Feedback-driven iterative refinement to enhance outputs.
 - **BioMCP Integration**: Connects to biological databases and tools via BioMCP CLI for hypothesis generation.
 - **Intelligent Error Handling**: LLM-driven code analysis and user feedback integration for robust error resolution.
-- **Can use open weights LLMs with zero API costs**: Uses free DeepSeek R1, Qwen and other open-weights alternatives to avoid API expenses.
+- **Can use open weights LLMs with zero API costs**: Uses free llama 3.1:8b and other open-weights alternatives to avoid API expenses.
 - **Privacy-Preserving Computation**: Runs locally or on secure environments without sending data to third-party servers.
 
 ## **New Features**
@@ -83,7 +83,7 @@ Later we will add the capability for the agentic system to create custom agents 
 
 ## Schematic of information and instruction flows
 
-![Schematic of information and instruction flows](Figs/agentic_lab_schematic.png)
+![Schematic of information and instruction flows](Figs/agentic_lab_schematic.new.png)
 
 ---
 
@@ -153,20 +153,7 @@ conda activate agentic_lab_env
 | `--conda_env`    | `str`    | No       | Path to conda environment for code execution.                             |
 
 ```bash
-# Basic research and code generation
-python main.py --topic="Obtaining cancer survival outcome from bulk RNASeq and histology embeddings"
-
-# Quick search mode
-python main.py --topic="Gene expression analysis" --quick_search
-
-# Research only mode
-python main.py --topic="Cancer immunotherapy" --mode=research_only
-
-# Include PDF files
-python main.py --topic="Single-cell RNA sequencing" --pdfs paper1.pdf paper2.pdf
-
-# Include specific URLs
-python main.py --topic="Machine learning in genomics" --links https://arxiv.org/abs/2023.12345
+python main.py --topic "I want to understand the genes that are responsible for low dose radiation induced changes in transcriptional states. Please write and execute code to perform quality control, filtering and tokenization (for the single cell foundation model Geneformer) for the files located in files_dir, which contain single cell data for cells exposed to different levels of radiation" --links "https://huggingface.co/ctheodoris/Geneformer/blob/main/examples/tokenizing_scRNAseq_data.ipynb" "https://huggingface.co/ctheodoris/Geneformer" "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE255800" --files_dir /Users/tnandi/Downloads/GSE255800_extracted --mode code_only
 ```
 
 ### **BioMCP Hypothesis Generation**
@@ -185,10 +172,10 @@ This will:
 5. Create research plans
 
 #### Note: 
-1. Now using deepseek and Qwen reasoning models hosted on Sophia/Polaris using Ollama (Q4_K_M quantized versions). Will move to the ALCF inference endpoints when they make deepseek-r1 available.
-2. The system now includes robust error handling with user feedback integration. After each failure, the system will ask for your suggestions to improve the code or process.
-3. All prompts are now centralized in `prompts.py` for easier maintenance and customization.
-4. The BioMCP integration provides access to biological databases for hypothesis generation and validation.
+<!-- 1. Now using deepseek and Qwen reasoning models hosted on Sophia/Polaris using Ollama (Q4_K_M quantized versions). Will move to the ALCF inference endpoints when they make deepseek-r1 available. -->
+- The system now includes robust error handling with user feedback integration. After each failure, the system will ask for your suggestions to improve the code or process.
+- All prompts are now centralized in `prompts.py` for easier maintenance and customization.
+- The BioMCP integration provides access to biological databases for hypothesis generation and validation.
 
 ---
 
