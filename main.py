@@ -57,6 +57,7 @@ parser.add_argument("--links", nargs="+", help="Specify one or more URLs to incl
 parser.add_argument("--files_dir", type=str, help="Path to directory containing files to analyze.")
 parser.add_argument("--quick_search", action="store_true", help="Carry out quick search without extensive research.")
 parser.add_argument("--mode", choices=["research_only", "code_only", "both"], default="both", help="Choose task mode: only generate research report, only code, or both (default)")
+parser.add_argument("--conda_env", type=str, default="/Users/tnandi/Downloads/agents/agentic_lab/agentic_lab_env", help="Path to conda environment for code execution (e.g., /path/to/env)")
 
 def main():
     args = parser.parse_args()
@@ -90,7 +91,7 @@ def main():
     browsing_agent = BrowsingAgent(verbose=True)
     research_agent = ResearchAgent(mode=args.mode, verbose=True)
     code_writer_agent = CodeWriterAgent(verbose=True)
-    code_executor_agent = CodeExecutorAgent(verbose=True)
+    code_executor_agent = CodeExecutorAgent(verbose=True, conda_env_path=args.conda_env)
     code_reviewer_agent = CodeReviewerAgent(verbose=True)
     critic_agent = CriticAgent(verbose=True)
     

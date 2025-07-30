@@ -57,36 +57,7 @@ class PrincipalInvestigatorAgent:
             print("PI: Creating detailed plan based on sources and topic...")
         
         # Create a comprehensive plan prompt
-        plan_prompt = f"""
-        As a Principal Investigator, analyze the following sources and create a detailed plan for the topic: '{topic}'
-        
-        Sources:
-        {sources}
-        
-        Mode: {mode}
-        
-        Create a detailed plan by THINKING STEP BY STEP that includes:
-        1. Key insights from the sources
-        2. Analysis of any files found in the directory (if applicable)
-        3. Specific tasks for each agent:
-           - Research Agent: What aspects to focus on
-           - Code Writer Agent: What code to implement, what packages to import
-           - Code Executor Agent: How to execute the code, what packages to install
-           - Code Reviewer Agent: What to review in the code and the execution result or error messages
-           - Critic Agent: What to evaluate in the report and the code
-        
-        
-        Provide a clear, actionable plan that all agents can follow. ABSOLUTELY DO NOT plan for tasks that haven't been asked for, if you do, it will destroy the pipeline.
-        I REPEAT, DO NOT PLAN FOR TASKS THAT HAVEN'T BEEN ASKED FOR.
-        """
-
-        if changes:
-            plan_prompt += f"""
-        User requested the following changes to the plan:
-        {changes}
-
-        Reasoning about the changes and incorporating them into the new plan.
-        """
+        plan_prompt = prompts.get_pi_plan_prompt(sources, topic, mode, changes)
         
         plan = query_llm(plan_prompt, temperature=LLM_CONFIG["temperature"]["research"])
 
@@ -211,33 +182,38 @@ class PrincipalInvestigatorAgent:
                             print("\nPI: Code Writer Agent improved the code:")
                             print(code)
 
-                # Only execute code if mode is code_only or both
+                # Handle code iteration and research improvement based on mode
                 if self.mode in ["code_only", "both"]:
-                    # Code Executor agent executes the code
+                    # Iterate between code agents until success
+                    code, code_success = self._iterate_code_until_success(code, sources, topic)
+                    if code_success:
+                        print(" **** Code iteration completed successfully! ****")
+                    else:
+                        print("\n !!!! Code iteration completed but user may not be fully satisfied.")
+                    
+                    # Get final execution result for critic review
                     execution_result = self.code_executor_agent.execute_code(code)
                     if self.verbose:
-                        print("\nPI: Code Executor Agent execution result:")
+                        print("\nPI: Final Code Executor Agent execution result:")
                         print(execution_result)
-
-                    # Code Reviewer agent checks the output and suggests changes if needed
-                    review_feedback = self.code_reviewer_agent.review_code(
-                        code, execution_result
-                    )
-                    if self.verbose:
-                        print("\nPI: Code Reviewer Agent provided the following feedback:")
-                        print(review_feedback)
-                    critique_code = self.critic_agent.review_code_execution(code, execution_result)
                 else:
-                    critique_code = ""
+                    # Research-only mode: improve document
+                    report = self.research_agent.improve_document(report, critique_report)
                     execution_result = ""
-                
+
                 # Only review document if mode is research_only or both
                 if self.mode in ["research_only", "both"]:
                     critique_report = self.critic_agent.review_document(report, sources)
                 else:
                     critique_report = ""
                 
-                # Handle feedback based on mode
+                # Only review code execution if mode is code_only or both
+                if self.mode in ["code_only", "both"]:
+                    critique_code = self.critic_agent.review_code_execution(code, execution_result)
+                else:
+                    critique_code = ""
+                
+                # Handle feedback based on mode - CRITIC AGENT CALLED AT END OF ROUND
                 if self.mode == "both":
                     summary_feedback = self.critic_agent.communicate_with_pi(critique_report, critique_code)
                     self.last_critique = {"document": critique_report, "code": critique_code}
@@ -262,37 +238,94 @@ class PrincipalInvestigatorAgent:
                 # save outputs after every round
                 utils.save_output(report, code, execution_result, self.iteration)
 
-                # if the code failed, improve it based on feedback
-                # if self.mode in ["both", "code_only"] and "failed" in execution_result.lower():
-                #     print("\nPI: Code execution failed. Improving code based on feedback.")
-                #     code = self.code_writer_agent.improve_code(code, review_feedback)
-
-                if self.mode in ["both", "code_only"] and ("failed" in execution_result.lower() or "User declined" in execution_result):
-                    print("\nPI: Code execution failed or was declined. Improving code based on feedback.")
-                    
-                    # extract user feedback from the execution result
-                    user_feedback_match = re.search(r"Feedback: (.*)", execution_result)
-                    user_feedback = user_feedback_match.group(1).strip() if user_feedback_match else ""
-                    
-                    # combine review feedback and user feedback into one string
-                    combined_feedback = review_feedback
-                    if user_feedback:
-                        combined_feedback += f"\n\nAdditional user feedback:\n{user_feedback}"
-                    
-                    # improve the code based on both sources
-                    code = self.code_writer_agent.improve_code(code, combined_feedback)
-
-
-                else:
-                    report = self.research_agent.improve_document(report, critique_report)
-                    
-                    # print("\nPI: Pipeline execution complete. Finalizing.")
-                    # return report, code, True
-
                 self.iteration += 1
 
             print(f"\nPI: Maximum rounds ({self.max_rounds}) reached. Stopping.")
             return report, code, False
+
+    def _iterate_code_until_success(self, initial_code, sources, topic, max_code_iterations=10):
+        """
+        Iterate between CodeWriterAgent, CodeExecutorAgent, and CodeReviewerAgent 
+        until the code runs successfully and the user is satisfied.
+        
+        Args:
+            initial_code: The initial code to start with
+            sources: The sources for context
+            topic: The topic being worked on
+            max_code_iterations: Maximum number of code improvement iterations
+            
+        Returns:
+            tuple: (final_code, success_flag)
+        """
+        code = initial_code
+        iteration = 0
+        user_satisfied = False
+        
+        print(f"\n Starting code iteration loop (max {max_code_iterations} iterations) ...")
+        
+        while iteration < max_code_iterations and not user_satisfied:
+            iteration += 1
+            print(f"\n Code Iteration {iteration}/{max_code_iterations}")
+            print("=" * 50)
+            
+            # Step 1: Execute the code
+            print("\n CodeExecutorAgent: Executing code...")
+            execution_result = self.code_executor_agent.execute_code(code)
+            
+            # Check if execution was successful
+            if "failed" not in execution_result.lower() and "User declined" not in execution_result:
+                print("Code executed successfully!")
+                
+                # Step 2: Review the successful execution
+                print("\n CodeReviewerAgent: Reviewing successful execution...")
+                review_feedback = self.code_reviewer_agent.review_code(code, execution_result)
+                
+                # Ask user if they're satisfied
+                print(f"\n Code Review Feedback:")
+                print(review_feedback[:500] + "..." if len(review_feedback) > 500 else review_feedback)
+                
+                user_input = input("\n Are you satisfied with the code execution? (y/n): ").strip().lower()
+                
+                if user_input == "y":
+                    user_satisfied = True
+                    print(" **** User satisfied! Code iteration complete. ****")
+                    break
+                else:
+                    # User wants improvements
+                    improvement_request = input(" What specific improvements would you like? ")
+                    print("\n CodeWriterAgent: Improving code based on user feedback...")
+                    code = self.code_writer_agent.improve_code(code, improvement_request)
+                    
+            else:
+                # Code execution failed
+                print("!!!! Code execution failed or was declined. !!!!")
+                print(f"Error: {execution_result[:200]}...")
+                
+                # Step 3: Review the failed execution
+                print("\n CodeReviewerAgent: Reviewing failed execution...")
+                review_feedback = self.code_reviewer_agent.review_code(code, execution_result)
+                
+                # Extract user feedback if available
+                user_feedback_match = re.search(r"Feedback: (.*)", execution_result)
+                user_feedback = user_feedback_match.group(1).strip() if user_feedback_match else ""
+                
+                # Combine feedback
+                combined_feedback = review_feedback
+                if user_feedback:
+                    combined_feedback += f"\n\nAdditional user feedback:\n{user_feedback}"
+                
+                print(f"\n Combined Feedback:")
+                print(combined_feedback[:500] + "..." if len(combined_feedback) > 500 else combined_feedback)
+                
+                # Step 4: Improve the code
+                print("\n CodeWriterAgent: Improving code based on feedback...")
+                code = self.code_writer_agent.improve_code(code, combined_feedback)
+        
+        if iteration >= max_code_iterations:
+            print(f"\n Maximum code iterations ({max_code_iterations}) reached.")
+            print("Consider reviewing the code manually or adjusting the requirements.")
+        
+        return code, user_satisfied
 
 
 # Browsing Agent
@@ -401,14 +434,14 @@ class BrowsingAgent:
                             for i, code in enumerate(code_blocks, 1):
                                 content += f"--- Code Block {i} ---\n{code}\n"
                     else:
-                        print(f"❌ Failed to access {link} - Status code: {response.status_code}")
+                        print(f"Failed to access {link} - Status code: {response.status_code}")
                         content = f"URL: {link}\nFailed to access content"
                         
                 link_contents.append(content)
-                print(f"✅ Successfully processed {link}")
+                print(f"Successfully processed {link}")
                     
             except Exception as e:
-                print(f"❌ Error accessing {link}: {e}")
+                print(f"Error accessing {link}: {e}")
                 link_contents.append(f"URL: {link}\nError: {str(e)}")
         
         return "\n\n".join(link_contents)
@@ -791,20 +824,258 @@ class CodeWriterAgent:
 
 # Code Executor Agent
 class CodeExecutorAgent:
-    def __init__(self, verbose=True):
+    def __init__(self, verbose=True, conda_env_path=None):
         self.verbose = verbose
         self.plan = None  # gets the plan from PI agent (self.code_writer_agent.plan = plan)
+        self.conda_env_path = conda_env_path
+        
+    def _verify_conda_environment(self):
+        """Verify that the conda environment exists and is accessible"""
+        if not self.conda_env_path:
+            print("No conda environment path specified. Using system Python.")
+            return False
+            
+        # Check if the conda environment directory exists
+        if not os.path.exists(self.conda_env_path):
+            print(f"ERROR: Conda environment path does not exist: {self.conda_env_path}")
+            return False
+            
+        # Check if Python executable exists in the environment
+        python_executable = self._get_python_executable()
+        if not os.path.exists(python_executable):
+            print(f"ERROR: Python executable not found in conda environment: {python_executable}")
+            return False
+            
+        # Check if pip executable exists in the environment
+        pip_executable = self._get_pip_executable()
+        if not os.path.exists(pip_executable):
+            print(f"ERROR: pip executable not found in conda environment: {pip_executable}")
+            return False
+            
+        print(f"Conda environment verified: {self.conda_env_path}")
+        return True
+    
+    def _get_python_version(self):
+        """Get the Python version from the conda environment"""
+        try:
+            python_executable = self._get_python_executable()
+            result = subprocess.run(
+                [python_executable, "--version"],
+                capture_output=True,
+                text=True
+            )
+            
+            if result.returncode == 0:
+                return result.stdout.strip()
+            else:
+                return "Unknown"
+                
+        except Exception as e:
+            print(f"Error getting Python version: {e}")
+            return "Unknown"
+    
+    def _get_conda_env_info(self):
+        """Get information about the conda environment"""
+        try:
+            # Get the conda environment's site-packages directory
+            python_executable = self._get_python_executable()
+            result = subprocess.run(
+                [python_executable, "-c", "import site; print(site.getsitepackages()[0])"],
+                capture_output=True,
+                text=True
+            )
+            
+            if result.returncode == 0:
+                site_packages = result.stdout.strip()
+                return {
+                    'python_version': self._get_python_version(),
+                    'site_packages': site_packages,
+                    'python_executable': python_executable
+                }
+            else:
+                return None
+                
+        except Exception as e:
+            print(f"Error getting conda environment info: {e}")
+            return None
+    
+    def _get_python_executable(self):
+        """Get the Python executable path for the conda environment"""
+        if self.conda_env_path:
+            # Use the conda environment's Python
+            python_path = os.path.join(self.conda_env_path, "bin", "python")
+            if os.path.exists(python_path):
+                return python_path
+            else:
+                # Try Windows-style path
+                python_path = os.path.join(self.conda_env_path, "Scripts", "python.exe")
+                if os.path.exists(python_path):
+                    return python_path
+                else:
+                    print(f"Warning: Python executable not found in {self.conda_env_path}")
+                    return "python"  # Fallback to system Python
+        else:
+            return "python"  # Use system Python if no conda env specified
+    
+    def _get_pip_executable(self):
+        """Get the pip executable path for the conda environment"""
+        if self.conda_env_path:
+            # Use the conda environment's pip
+            pip_path = os.path.join(self.conda_env_path, "bin", "pip")
+            if os.path.exists(pip_path):
+                return pip_path
+            else:
+                # Try Windows-style path
+                pip_path = os.path.join(self.conda_env_path, "Scripts", "pip.exe")
+                if os.path.exists(pip_path):
+                    return pip_path
+                else:
+                    print(f"Warning: pip executable not found in {self.conda_env_path}")
+                    return "pip"  # Fallback to system pip
+        else:
+            return "pip"  # Use system pip if no conda env specified
+    
+    def _list_installed_packages(self):
+        """List all installed packages in the conda environment"""
+        try:
+            pip_executable = self._get_pip_executable()
+            result = subprocess.run(
+                [pip_executable, "list"],
+                capture_output=True,
+                text=True
+            )
+            
+            if result.returncode == 0:
+                return result.stdout
+            else:
+                print(f"Failed to list packages: {result.stderr}")
+                return ""
+                
+        except Exception as e:
+            print(f"Error listing packages: {e}")
+            return ""
+    
+    def _check_package_installed(self, package_name):
+        """Check if a specific package is installed"""
+        installed_packages = self._list_installed_packages()
+        return package_name.lower() in installed_packages.lower()
+    
+    def _install_packages_in_conda(self, packages):
+        """Install packages in the conda environment"""
+        if not packages or not self.conda_env_path:
+            return True
+            
+        try:
+            print(f"Installing packages in conda environment: {packages}")
+            
+            # Get the pip executable
+            pip_executable = self._get_pip_executable()
+            
+            # Clean up package names (remove any LLM thinking artifacts)
+            clean_packages = []
+            for package in packages:
+                # Extract just the package name, removing any thinking artifacts
+                clean_name = package.strip()
+                # Remove any thinking artifacts like "<think>...</think>"
+                if "<think>" in clean_name:
+                    # Extract the last word after the thinking block
+                    parts = clean_name.split("</think>")
+                    if len(parts) > 1:
+                        clean_name = parts[-1].strip()
+                # Remove any newlines or extra whitespace
+                clean_name = clean_name.replace("\n", "").strip()
+                if clean_name and not clean_name.startswith("<"):
+                    clean_packages.append(clean_name)
+            
+            if not clean_packages:
+                print("No valid package names found after cleaning")
+                print("\n" + "="*60)
+                print("❓ PACKAGE INSTALLATION FAILED - USER FEEDBACK REQUESTED")
+                print("="*60)
+                user_suggestion = input("The system couldn't find valid package names. Do you have suggestions for the correct package names or installation method? (optional): ").strip()
+                if user_suggestion:
+                    print(f"User suggestion for package installation: {user_suggestion}")
+                return False
+            
+            print(f"Cleaned package names: {clean_packages}")
+            
+            install_cmd = [pip_executable, "install"] + clean_packages
+            
+            result = subprocess.run(
+                install_cmd,
+                capture_output=True,
+                text=True
+            )
+            
+            if result.returncode == 0:
+                print(f"Successfully installed packages: {clean_packages}")
+                return True
+            else:
+                print(f"Failed to install packages: {result.stderr}")
+                
+                # Ask for user suggestions when package installation fails
+                print("\n" + "="*60)
+                print("❓ PACKAGE INSTALLATION FAILED - USER FEEDBACK REQUESTED")
+                print("="*60)
+                print(f"Failed to install: {clean_packages}")
+                print(f"Error: {result.stderr}")
+                user_suggestion = input("Do you have suggestions for fixing the package installation? (e.g., different package names, alternative installation methods, conda vs pip): ").strip()
+                
+                if user_suggestion:
+                    print(f"User suggestion for package installation: {user_suggestion}")
+                    # Could potentially retry with user suggestions here
+                
+                return False
+                
+        except Exception as e:
+            print(f"Error installing packages: {e}")
+            
+            # Ask for user suggestions when package installation throws an exception
+            print("\n" + "="*60)
+            print("❓ PACKAGE INSTALLATION EXCEPTION - USER FEEDBACK REQUESTED")
+            print("="*60)
+            user_suggestion = input("An exception occurred during package installation. Do you have suggestions for fixing this? (e.g., environment issues, network problems, alternative packages): ").strip()
+            
+            if user_suggestion:
+                print(f"User suggestion for package installation exception: {user_suggestion}")
+            
+            return False
         
     def execute_code(self, code):
         if self.verbose:
             print("********** Code Executor Agent: executing code")
+            
+            # Verify conda environment
+            if self.conda_env_path:
+                print(f"Specified conda environment: {self.conda_env_path}")
+                
+                # Verify the environment exists and is accessible
+                if self._verify_conda_environment():
+                    # Get environment information
+                    env_info = self._get_conda_env_info()
+                    if env_info:
+                        print(f"Python version: {env_info['python_version']}")
+                        print(f"Python executable: {env_info['python_executable']}")
+                        print(f"Site-packages: {env_info['site_packages']}")
+                    
+                    # List installed packages
+                    print("\n=== Currently Installed Packages ===")
+                    installed_packages = self._list_installed_packages()
+                    print(installed_packages)  # Show full output
+                    print("=" * 50)
+                else:
+                    print("Conda environment verification failed. Using system Python.")
+            else:
+                print("No conda environment specified. Using system Python.")
 
         # extract only the code section using regex
-        # code not being extracted properly
-        cleaned_code = self.extract_code(code) # can remove this now as the code is cleaned within by the code writer agent itself
+        cleaned_code = self.extract_code(code)
 
         if not cleaned_code.strip():
             print("Execution aborted: No valid Python code detected.")
+            user_suggestion = input("\n❓ Do you have any suggestions for what might be wrong with the code? (optional): ").strip()
+            if user_suggestion:
+                return f"Execution failed: No valid Python code detected. User suggestion: {user_suggestion}"
             return "Execution failed: No valid Python code detected."
 
         # print extracted code and ask for user confirmation
@@ -815,10 +1086,6 @@ class CodeExecutorAgent:
 
         user_input = input("Do you want to execute this code? (y/n): ").strip().lower()
 
-        # if user_input != "yes":
-        #     print("User opted to rewrite the code.")
-        #     return "User requested a code rewrite." # add abilities to request user input on why the code needs rewrite
-        
         if user_input != "y":
             reason = input("You declined to run the code. Why? (optional feedback): ").strip()
             feedback_msg = f"Execution failed: User declined to run the code."
@@ -833,10 +1100,13 @@ class CodeExecutorAgent:
             with open(temp_file, "w") as f:
                 f.write(cleaned_code)
 
-            # execute the code using subprocess
-            print("\nExecuting the code...\n")
+            # Get the appropriate Python executable
+            python_executable = self._get_python_executable()
+            
+            # execute the code using the conda environment's Python
+            print(f"\nExecuting the code using: {python_executable}\n")
             result = subprocess.run(
-                ["python", temp_file], capture_output=True, text=True
+                [python_executable, temp_file], capture_output=True, text=True
             )
 
             # print standard output
@@ -853,35 +1123,99 @@ class CodeExecutorAgent:
                 missing_packages = self._detect_missing_packages(result.stderr)
                 if missing_packages:
                     print(f"Missing packages detected: {missing_packages}")
-                    packages_to_install = self._resolve_package_names_with_llm(missing_packages)
-                    self._install_packages(packages_to_install)
+                    
+                    # Check which packages are actually missing
+                    actually_missing = []
+                    for package in missing_packages:
+                        if not self._check_package_installed(package):
+                            actually_missing.append(package)
+                        else:
+                            print(f"Package '{package}' is already installed")
+                    
+                    if actually_missing:
+                        print(f"Packages that need installation: {actually_missing}")
+                        packages_to_install = self._resolve_package_names_with_llm(actually_missing)
+                        
+                        # Install packages in conda environment
+                        if self._install_packages_in_conda(packages_to_install):
+                            # Ask user again before retrying execution
+                            user_retry = input("\nPackages were installed in conda environment. Do you want to retry executing the code? (y/n): ").strip().lower()
+                            if user_retry != "y":
+                                reason = input("You declined to retry running the improved code. Why? (optional feedback): ").strip()
+                                feedback_msg = f"Execution skipped after fix: User declined to run improved code."
+                                if reason:
+                                    feedback_msg += f" Feedback: {reason}"
+                                print("User opted not to retry the code.")
+                                return feedback_msg
 
-                    # Ask user again before retrying execution
-                    user_retry = input("\nPackages were installed or fixes were made. Do you want to retry executing the code? (y/n): ").strip().lower()
-                    if user_retry != "y":
-                        reason = input("You declined to retry running the improved code. Why? (optional feedback): ").strip()
-                        feedback_msg = f"Execution skipped after fix: User declined to run improved code."
-                        if reason:
-                            feedback_msg += f" Feedback: {reason}"
-                        print("User opted not to retry the code.")
-                        return feedback_msg
-
-                    # Proceed with re-execution
-                    print("\nRetrying execution after fixes...\n")
-                    result = subprocess.run(["python", temp_file], capture_output=True, text=True)
+                            # Proceed with re-execution
+                            print("\nRetrying execution after package installation...\n")
+                            result = subprocess.run([python_executable, temp_file], capture_output=True, text=True)
+                    else:
+                        print("All detected packages are already installed. The error might be due to import issues.")
 
             if result.returncode == 0:
-                print("Execution succeeded:")
-                print(result.stdout)
-                return result.stdout
+                # Check if the output contains error messages even though return code is 0
+                output_text = result.stdout.lower()
+                error_indicators = [
+                    'error', 'failed', 'exception', 'traceback', 'module not found',
+                    'no module named', 'import error', 'syntax error', 'typeerror',
+                    'valueerror', 'attributeerror', 'keyerror', 'indexerror',
+                    'file not found', 'permission denied', 'timeout', 'connection error'
+                ]
+                
+                has_error = any(indicator in output_text for indicator in error_indicators)
+                
+                if has_error:
+                    print("Execution failed (detected error in output):")
+                    print(result.stdout)
+                    if result.stderr:
+                        print("\n=== Execution Errors ===")
+                        print(result.stderr)
+                    
+                    # Ask for user suggestions after detecting error in output
+                    print("\n" + "="*60)
+                    print("❓ EXECUTION FAILED (ERROR IN OUTPUT) - USER FEEDBACK REQUESTED")
+                    print("="*60)
+                    user_suggestion = input("The code ran but produced errors. Do you have suggestions for fixing these errors? (e.g., correct function parameters, data format, missing dependencies): ").strip()
+                    
+                    if user_suggestion:
+                        return f"Execution failed (error in output):\n{result.stdout}\n\nUser suggestion: {user_suggestion}"
+                    else:
+                        return f"Execution failed (error in output):\n{result.stdout}"
+                else:
+                    print("Execution succeeded:")
+                    print(result.stdout)
+                    return result.stdout
             else:
                 print("Execution failed:")
                 print(result.stderr)
-                return f"Execution failed:\n{result.stderr}"
+                
+                # Ask for user suggestions after any failure
+                print("\n" + "="*60)
+                print("❓ EXECUTION FAILED - USER FEEDBACK REQUESTED")
+                print("="*60)
+                user_suggestion = input("Do you have any suggestions for fixing this error? (e.g., specific packages, code changes, environment issues): ").strip()
+                
+                if user_suggestion:
+                    return f"Execution failed:\n{result.stderr}\n\nUser suggestion: {user_suggestion}"
+                else:
+                    return f"Execution failed:\n{result.stderr}"
+                    
         except Exception as e:
             print("Execution failed with exception:")
             print(str(e))
-            return f"Execution failed with exception:\n{str(e)}"
+            
+            # Ask for user suggestions after any exception
+            print("\n" + "="*60)
+            print("EXECUTION FAILED WITH EXCEPTION - USER FEEDBACK REQUESTED")
+            print("="*60)
+            user_suggestion = input("Do you have any suggestions for fixing this exception? (e.g., code issues, environment problems, missing dependencies): ").strip()
+            
+            if user_suggestion:
+                return f"Execution failed with exception:\n{str(e)}\n\nUser suggestion: {user_suggestion}"
+            else:
+                return f"Execution failed with exception:\n{str(e)}"
 
     # def extract_code(self, text):
     #     """
@@ -938,13 +1272,7 @@ class CodeExecutorAgent:
         resolved_packages = []
 
         for mod in missing_modules:
-            prompt = (
-                f"You are a Python environment assistant.\n"
-                f"The module '{mod}' was imported in the code, "
-                f"but it raised 'No module named {mod}'.\n"
-                f"What is the correct PyPI package name to install via pip for this module?\n"
-                f"Respond with only the pip package name, no explanations."
-            )
+            prompt = prompts.get_package_resolution_prompt(mod)
 
             print(f"Asking LLM: What to install for missing module '{mod}'...")
             try:
@@ -952,25 +1280,21 @@ class CodeExecutorAgent:
                 resolved_packages.append(response)
             except Exception as e:
                 print(f"LLM failed to resolve package for '{mod}': {e}")
+                
+                # Ask for user suggestions when LLM fails to resolve package names
+                print("\n" + "="*60)
+                print("❓ LLM PACKAGE RESOLUTION FAILED - USER FEEDBACK REQUESTED")
+                print("="*60)
+                user_suggestion = input(f"The LLM couldn't resolve the package name for '{mod}'. Do you know the correct package name or installation method? (optional): ").strip()
+                
+                if user_suggestion:
+                    print(f"User suggestion for package '{mod}': {user_suggestion}")
+                    resolved_packages.append(user_suggestion)
+                else:
+                    # Use the original module name as fallback
+                    resolved_packages.append(mod)
         
         return resolved_packages
-
-
-    def _install_packages(self, packages):
-        """
-        Install the required packages using pip.
-        """
-        if not packages:
-            return
-        print(f"Installing missing packages: {packages}")
-        try:
-            subprocess.run(
-                ["pip", "install"] + packages, check=True, capture_output=True, text=True
-            )
-            print("Packages installed successfully.")
-        except subprocess.CalledProcessError as e:
-            print(f"Failed to install packages: {e.stderr}")
-            raise
 
 
 # Code Reviewer agent
@@ -981,15 +1305,16 @@ class CodeReviewerAgent:
         
     def review_code(self, code, execution_result):
         if self.verbose:
-            print("********** Code Reviewer Agent: reviewing code")
+            print(f"********** Code Reviewer Agent: reviewing code based on {execution_result[:100]}...")
         
-        # Choose the appropriate prompt based on whether execution succeeded or failed
-        if "failed" in execution_result.lower() or "User declined" in execution_result:
-            prompt = prompts.get_code_review_failed_prompt(code, execution_result)
-        else:
-            prompt = prompts.get_code_review_succeeded_prompt(code, execution_result)
-            
-        return query_llm(prompt, temperature=LLM_CONFIG["temperature"]["review"])
+        # Use LLM to analyze the execution result and determine the appropriate fix
+        analysis_prompt = prompts.get_code_reviewer_analysis_prompt(code, execution_result)
+        analysis = query_llm(analysis_prompt, temperature=LLM_CONFIG["temperature"]["review"])
+        
+        # Use the analysis to create a targeted fix prompt
+        fix_prompt = prompts.get_code_reviewer_fix_prompt(code, execution_result, analysis)
+        
+        return query_llm(fix_prompt, temperature=LLM_CONFIG["temperature"]["review"])
 
 
 # Critic agent
