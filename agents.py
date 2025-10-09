@@ -62,13 +62,21 @@ class PrincipalInvestigatorAgent:
         plan = query_llm(plan_prompt, temperature=LLM_CONFIG["temperature"]["research"])
 
         if changes:
-            reasoning = f"""
-            Reasoning for the new plan:
-            - User requested changes: {changes}
-            - Adjustments made to the plan based on user feedback.
-            """
+            # Generate detailed reasoning about the changes
+            reasoning_prompt = prompts.get_plan_changes_reasoning_prompt(changes, topic, mode)
+            
+            reasoning = query_llm(reasoning_prompt, temperature=LLM_CONFIG["temperature"]["research"])
+            
             print("PI: Reasoning about the changes and creating a new plan...")
+            print("=" * 60)
+            print("CHANGES INCORPORATED:")
+            print(f"User Request: {changes}")
+            print("\nREASONING:")
             print(reasoning)
+            print("=" * 60)
+            print("\nIMPROVED PLAN:")
+            print(plan)
+            print("=" * 60)
 
         return plan
         
@@ -372,6 +380,30 @@ class BrowsingAgent:
         # Add files directory content if available
         if files_dir_content:
             sources.append(f"Files Directory Content:\n{files_dir_content}")
+        
+        # Add current directory information to help with file path decisions
+        try:
+            import os
+            current_dir = os.getcwd()
+            files_in_current_dir = []
+            
+            # List files in current directory
+            for item in os.listdir(current_dir):
+                if os.path.isfile(item):
+                    files_in_current_dir.append(item)
+            
+            current_dir_info = f"Current Working Directory: {current_dir}\n"
+            current_dir_info += f"Files in current directory:\n"
+            current_dir_info += "\n".join(files_in_current_dir)
+            
+            sources.append(f"Current Directory Information:\n{current_dir_info}")
+            
+            if self.verbose:
+                print(f"Added current directory information with {len(files_in_current_dir)} files")
+                
+        except Exception as e:
+            if self.verbose:
+                print(f"Could not get current directory information: {e}")
 
         formatted_sources = "\n\n".join(sources)
         # set_trace()
@@ -990,11 +1022,27 @@ class CodeExecutorAgent:
             if not clean_packages:
                 print("No valid package names found after cleaning")
                 print("\n" + "="*60)
-                print("❓ PACKAGE INSTALLATION FAILED - USER FEEDBACK REQUESTED")
+                print("🔍 REASONING ABOUT PACKAGE INSTALLATION ISSUE")
                 print("="*60)
-                user_suggestion = input("The system couldn't find valid package names. Do you have suggestions for the correct package names or installation method? (optional): ").strip()
-                if user_suggestion:
-                    print(f"User suggestion for package installation: {user_suggestion}")
+                reasoning_prompt = prompts.get_package_reasoning_prompt(
+                    "No valid package names found after cleaning", 
+                    str(packages)
+                )
+                print("Reasoning about the issue with LLM...")
+                llm_reasoning = query_llm(reasoning_prompt, temperature=LLM_CONFIG["temperature"]["coding"])
+                
+                print("\n" + "="*60)
+                print(" LLM REASONING AND PROPOSED SOLUTION")
+                print("="*60)
+                print(llm_reasoning)
+                print("="*60)
+                
+                # Ask for user feedback on the proposed solution
+                user_feedback = input("\nPlease provide feedback on this proposed solution. Do you agree with this approach? Any modifications needed? ").strip()
+                
+                if user_feedback:
+                    print(f"Processing user feedback with LLM...")
+                    return self._process_package_feedback_with_llm(user_feedback, "No valid package names found", str(packages), llm_reasoning)
                 return False
             
             print(f"Cleaned package names: {clean_packages}")
@@ -1013,31 +1061,62 @@ class CodeExecutorAgent:
             else:
                 print(f"Failed to install packages: {result.stderr}")
                 
-                # Ask for user suggestions when package installation fails
+                # First, reason about the solution using LLM
                 print("\n" + "="*60)
-                print("❓ PACKAGE INSTALLATION FAILED - USER FEEDBACK REQUESTED")
+                print(" REASONING ABOUT PACKAGE INSTALLATION ISSUE")
                 print("="*60)
                 print(f"Failed to install: {clean_packages}")
                 print(f"Error: {result.stderr}")
-                user_suggestion = input("Do you have suggestions for fixing the package installation? (e.g., different package names, alternative installation methods, conda vs pip): ").strip()
                 
-                if user_suggestion:
-                    print(f"User suggestion for package installation: {user_suggestion}")
-                    # Could potentially retry with user suggestions here
+                reasoning_prompt = prompts.get_package_reasoning_prompt(
+                    result.stderr, 
+                    str(clean_packages)
+                )
+                print("Reasoning about the issue with LLM...")
+                llm_reasoning = query_llm(reasoning_prompt, temperature=LLM_CONFIG["temperature"]["coding"])
+                
+                print("\n" + "="*60)
+                print(" LLM REASONING AND PROPOSED SOLUTION")
+                print("="*60)
+                print(llm_reasoning)
+                print("="*60)
+                
+                # Ask for user feedback on the proposed solution
+                user_feedback = input("\nPlease provide feedback on this proposed solution. Do you agree with this approach? Any modifications needed? ").strip()
+                
+                if user_feedback:
+                    print(f"Processing user feedback with LLM...")
+                    return self._process_package_feedback_with_llm(user_feedback, result.stderr, str(clean_packages), llm_reasoning)
                 
                 return False
                 
         except Exception as e:
             print(f"Error installing packages: {e}")
             
-            # Ask for user suggestions when package installation throws an exception
+            # First, reason about the solution using LLM
             print("\n" + "="*60)
-            print("❓ PACKAGE INSTALLATION EXCEPTION - USER FEEDBACK REQUESTED")
+            print(" REASONING ABOUT PACKAGE INSTALLATION EXCEPTION")
             print("="*60)
-            user_suggestion = input("An exception occurred during package installation. Do you have suggestions for fixing this? (e.g., environment issues, network problems, alternative packages): ").strip()
             
-            if user_suggestion:
-                print(f"User suggestion for package installation exception: {user_suggestion}")
+            reasoning_prompt = prompts.get_package_reasoning_prompt(
+                str(e), 
+                str(packages)
+            )
+            print("Reasoning about the exception with LLM...")
+            llm_reasoning = query_llm(reasoning_prompt, temperature=LLM_CONFIG["temperature"]["coding"])
+            
+            print("\n" + "="*60)
+            print(" LLM REASONING AND PROPOSED SOLUTION")
+            print("="*60)
+            print(llm_reasoning)
+            print("="*60)
+            
+            # Ask for user feedback on the proposed solution
+            user_feedback = input("\nPlease provide feedback on this proposed solution. Do you agree with this approach? Any modifications needed? ").strip()
+            
+            if user_feedback:
+                print(f"Processing user feedback with LLM...")
+                return self._process_package_feedback_with_llm(user_feedback, str(e), str(packages), llm_reasoning)
             
             return False
         
@@ -1073,9 +1152,9 @@ class CodeExecutorAgent:
 
         if not cleaned_code.strip():
             print("Execution aborted: No valid Python code detected.")
-            user_suggestion = input("\n❓ Do you have any suggestions for what might be wrong with the code? (optional): ").strip()
-            if user_suggestion:
-                return f"Execution failed: No valid Python code detected. User suggestion: {user_suggestion}"
+            user_feedback = input("\n❓ Do you have any feedback about why no valid Python code was detected? (optional): ").strip()
+            if user_feedback:
+                return f"Execution failed: No valid Python code detected. User feedback: {user_feedback}"
             return "Execution failed: No valid Python code detected."
 
         # print extracted code and ask for user confirmation
@@ -1155,50 +1234,82 @@ class CodeExecutorAgent:
                         print("All detected packages are already installed. The error might be due to import issues.")
 
             if result.returncode == 0:
-                # Check if the output contains error messages even though return code is 0
-                output_text = result.stdout.lower()
+                # Check if the output contains error messages in both stdout and stderr
+                stdout_text = result.stdout.lower()
+                stderr_text = result.stderr.lower() if result.stderr else ""
+                
                 error_indicators = [
                     'error', 'failed', 'exception', 'traceback', 'module not found',
                     'no module named', 'import error', 'syntax error', 'typeerror',
                     'valueerror', 'attributeerror', 'keyerror', 'indexerror',
-                    'file not found', 'permission denied', 'timeout', 'connection error'
+                    'file not found', 'permission denied', 'timeout', 'connection error',
+                    'not found at', 'does not exist', 'cannot find', 'missing file'
                 ]
                 
-                has_error = any(indicator in output_text for indicator in error_indicators)
+                # Check for logging error patterns (e.g., "ERROR - Error: file not found")
+                logging_error_patterns = [
+                    r'error.*error:',  # Matches "ERROR - Error:"
+                    r'error.*not found',  # Matches "ERROR - file not found"
+                    r'error.*failed',  # Matches "ERROR - operation failed"
+                ]
                 
-                if has_error:
+                has_error_in_stdout = any(indicator in stdout_text for indicator in error_indicators)
+                has_error_in_stderr = any(indicator in stderr_text for indicator in error_indicators)
+                
+                # Check for logging error patterns in stderr
+                has_logging_error = False
+                if result.stderr:
+                    for pattern in logging_error_patterns:
+                        if re.search(pattern, result.stderr, re.IGNORECASE):
+                            has_logging_error = True
+                            break
+                
+                if has_error_in_stdout or has_error_in_stderr or has_logging_error:
                     print("Execution failed (detected error in output):")
-                    print(result.stdout)
+                    if result.stdout:
+                        print("=== Standard Output ===")
+                        print(result.stdout)
                     if result.stderr:
-                        print("\n=== Execution Errors ===")
+                        print("\n=== Standard Error ===")
                         print(result.stderr)
                     
-                    # Ask for user suggestions after detecting error in output
+                    # Ask for user feedback after detecting error in output
                     print("\n" + "="*60)
-                    print("❓ EXECUTION FAILED (ERROR IN OUTPUT) - USER FEEDBACK REQUESTED")
+                    print(" EXECUTION FAILED (ERROR IN OUTPUT) - USER FEEDBACK REQUESTED")
                     print("="*60)
-                    user_suggestion = input("The code ran but produced errors. Do you have suggestions for fixing these errors? (e.g., correct function parameters, data format, missing dependencies): ").strip()
+                    error_summary = ""
+                    if has_error_in_stdout:
+                        error_summary += f"Errors in stdout: {result.stdout}\n"
+                    if has_error_in_stderr:
+                        error_summary += f"Errors in stderr: {result.stderr}\n"
+                    if has_logging_error:
+                        error_summary += f"Logging errors detected in stderr\n"
                     
-                    if user_suggestion:
-                        return f"Execution failed (error in output):\n{result.stdout}\n\nUser suggestion: {user_suggestion}"
+                    print(f"Error summary: {error_summary}")
+                    user_feedback = input("The code ran but produced errors. Please provide feedback about what might be causing these errors and how to fix them: ").strip()
+                    
+                    if user_feedback:
+                        return f"Execution failed (error in output):\n{error_summary}\n\nUser feedback: {user_feedback}"
                     else:
-                        return f"Execution failed (error in output):\n{result.stdout}"
+                        return f"Execution failed (error in output):\n{error_summary}"
                 else:
                     print("Execution succeeded:")
-                    print(result.stdout)
+                    if result.stdout:
+                        print(result.stdout)
                     return result.stdout
             else:
                 print("Execution failed:")
                 print(result.stderr)
                 
-                # Ask for user suggestions after any failure
+                # Ask for user feedback after any failure
                 print("\n" + "="*60)
-                print("❓ EXECUTION FAILED - USER FEEDBACK REQUESTED")
+                print(" EXECUTION FAILED - USER FEEDBACK REQUESTED")
                 print("="*60)
-                user_suggestion = input("Do you have any suggestions for fixing this error? (e.g., specific packages, code changes, environment issues): ").strip()
+                print(f"Error: {result.stderr}")
+                user_feedback = input("Please provide feedback about this execution error. Consider what might be causing it and how to fix it: ").strip()
                 
-                if user_suggestion:
-                    return f"Execution failed:\n{result.stderr}\n\nUser suggestion: {user_suggestion}"
+                if user_feedback:
+                    return f"Execution failed:\n{result.stderr}\n\nUser feedback: {user_feedback}"
                 else:
                     return f"Execution failed:\n{result.stderr}"
                     
@@ -1206,14 +1317,15 @@ class CodeExecutorAgent:
             print("Execution failed with exception:")
             print(str(e))
             
-            # Ask for user suggestions after any exception
+            # Ask for user feedback after any exception
             print("\n" + "="*60)
             print("EXECUTION FAILED WITH EXCEPTION - USER FEEDBACK REQUESTED")
             print("="*60)
-            user_suggestion = input("Do you have any suggestions for fixing this exception? (e.g., code issues, environment problems, missing dependencies): ").strip()
+            print(f"Exception: {str(e)}")
+            user_feedback = input("Please provide feedback about this exception. Consider what might be causing it and how to fix it: ").strip()
             
-            if user_suggestion:
-                return f"Execution failed with exception:\n{str(e)}\n\nUser suggestion: {user_suggestion}"
+            if user_feedback:
+                return f"Execution failed with exception:\n{str(e)}\n\nUser feedback: {user_feedback}"
             else:
                 return f"Execution failed with exception:\n{str(e)}"
 
@@ -1265,6 +1377,118 @@ class CodeExecutorAgent:
             missing_packages.update(matches)
         return list(missing_packages)
     
+    def _process_package_feedback_with_llm(self, user_feedback, error_message, failed_packages, llm_reasoning=None):
+        """
+        Process user feedback about package installation issues using LLM to determine the best action.
+        """
+        try:
+            # Create prompt to process user feedback
+            if llm_reasoning:
+                # If we have LLM reasoning, include it in the processing
+                feedback_prompt = f"""
+                You are a Python package installation expert. A package installation failed with this error:
+                
+                Error: {error_message}
+                Failed packages: {failed_packages}
+                
+                Previous LLM reasoning and proposed solution:
+                {llm_reasoning}
+                
+                The user provided this feedback on the proposed solution:
+                {user_feedback}
+                
+                Based on the original error, the LLM's reasoning, and the user's feedback, determine the final action to take.
+                
+                Your task is to:
+                1. Consider the LLM's original analysis and proposed solution
+                2. Incorporate the user's feedback and any modifications they requested
+                3. Provide the final specific command or action to take
+                
+                Respond with a JSON object in this exact format:
+                {{
+                    "analysis": "Brief analysis incorporating user feedback",
+                    "final_action": "Specific command or action to take",
+                    "explanation": "Why this final action should work"
+                }}
+                """
+            else:
+                # Original processing without LLM reasoning
+                feedback_prompt = prompts.get_package_feedback_processing_prompt(
+                    user_feedback, error_message, failed_packages
+                )
+            
+            print("Processing user feedback with LLM to determine the best solution...")
+            llm_response = query_llm(feedback_prompt, temperature=LLM_CONFIG["temperature"]["coding"])
+            
+            # Parse the JSON response
+            import json
+            try:
+                solution = json.loads(llm_response)
+                
+                if llm_reasoning:
+                    # New format with LLM reasoning
+                    print(f"LLM Analysis: {solution.get('analysis', 'No analysis provided')}")
+                    print(f"Final Action: {solution.get('final_action', 'No action specified')}")
+                    print(f"Explanation: {solution.get('explanation', 'No explanation provided')}")
+                    
+                    action = solution.get('final_action', '').strip()
+                else:
+                    # Original format
+                    print(f"LLM Analysis: {solution.get('analysis', 'No analysis provided')}")
+                    print(f"Root Cause: {solution.get('root_cause', 'Unknown')}")
+                    print(f"Solution Type: {solution.get('solution_type', 'Unknown')}")
+                    print(f"Proposed Action: {solution.get('action', 'No action specified')}")
+                    print(f"Explanation: {solution.get('explanation', 'No explanation provided')}")
+                    
+                    action = solution.get('action', '').strip()
+                
+                if not action:
+                    print("No action specified by LLM")
+                    return False
+                
+                # Extract package name from action if it's a pip install command
+                if action.startswith('pip install'):
+                    package_name = action.replace('pip install', '').strip()
+                    print(f"Extracted package name: {package_name}")
+                    return self._install_packages_in_conda([package_name])
+                elif action.startswith('conda install'):
+                    # For conda install, we need to handle it differently
+                    print(f"LLM suggested conda install: {action}")
+                    print("Note: Conda install commands need special handling")
+                    return self._install_packages_in_conda([action])
+                else:
+                    # For other types of actions, try to extract package name
+                    print(f"LLM suggested action: {action}")
+                    # Try to extract package name from the action
+                    import re
+                    package_match = re.search(r'install\s+([^\s]+)', action)
+                    if package_match:
+                        package_name = package_match.group(1)
+                        print(f"Extracted package name: {package_name}")
+                        return self._install_packages_in_conda([package_name])
+                    else:
+                        print(f"Could not extract package name from action: {action}")
+                        return False
+                        
+            except json.JSONDecodeError as e:
+                print(f"Failed to parse LLM response as JSON: {e}")
+                print(f"Raw LLM response: {llm_response}")
+                
+                # Fallback: try to extract package name from the response
+                import re
+                package_match = re.search(r'install\s+([^\s]+)', llm_response)
+                if package_match:
+                    package_name = package_match.group(1)
+                    print(f"Extracted package name from fallback: {package_name}")
+                    return self._install_packages_in_conda([package_name])
+                else:
+                    print("Could not extract package name from LLM response")
+                    return False
+                    
+        except Exception as e:
+            print(f"Error processing package feedback with LLM: {e}")
+            return False
+
     def _resolve_package_names_with_llm(self, missing_modules):
         """
         Detect missing packages from the error message.
@@ -1281,15 +1505,29 @@ class CodeExecutorAgent:
             except Exception as e:
                 print(f"LLM failed to resolve package for '{mod}': {e}")
                 
-                # Ask for user suggestions when LLM fails to resolve package names
+                # First, reason about the LLM failure using LLM
                 print("\n" + "="*60)
-                print("❓ LLM PACKAGE RESOLUTION FAILED - USER FEEDBACK REQUESTED")
+                print(" REASONING ABOUT LLM PACKAGE RESOLUTION FAILURE")
                 print("="*60)
-                user_suggestion = input(f"The LLM couldn't resolve the package name for '{mod}'. Do you know the correct package name or installation method? (optional): ").strip()
+                reasoning_prompt = prompts.get_package_reasoning_prompt(
+                    f"LLM failed to resolve package name for '{mod}'", 
+                    mod
+                )
+                print("Reasoning about the LLM failure with LLM...")
+                llm_reasoning = query_llm(reasoning_prompt, temperature=LLM_CONFIG["temperature"]["coding"])
                 
-                if user_suggestion:
-                    print(f"User suggestion for package '{mod}': {user_suggestion}")
-                    resolved_packages.append(user_suggestion)
+                print("\n" + "="*60)
+                print(" LLM REASONING AND PROPOSED SOLUTION")
+                print("="*60)
+                print(llm_reasoning)
+                print("="*60)
+                
+                # Ask for user feedback on the proposed solution
+                user_feedback = input("\nPlease provide feedback on this proposed solution. Do you agree with this approach? Any modifications needed? ").strip()
+                
+                if user_feedback:
+                    print(f"Processing user feedback with LLM...")
+                    return self._process_package_feedback_with_llm(user_feedback, f"LLM failed to resolve package name for '{mod}'", mod, llm_reasoning)
                 else:
                     # Use the original module name as fallback
                     resolved_packages.append(mod)
