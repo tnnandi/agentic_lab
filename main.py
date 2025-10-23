@@ -48,6 +48,7 @@ import config
 import utils
 import argparse
 import os
+from pdb import set_trace
 
 # Argument parser for topic input
 parser = argparse.ArgumentParser(description="Run Agentic Lab with a specified research topic.")
@@ -113,12 +114,12 @@ def main():
         mode=args.mode,
         quick_search=args.quick_search,
     )
-    
-    # Run the research
-    if args.quick_search:
-        pi_agent.quick_search(args.topic, pdf_content)
-    else:
-        pi_agent.coordinate(args.topic)  # Remove the pdf_content argument
+    print(f"args: {args}")
+    # # Run the research
+    # if args.quick_search:
+    #     pi_agent.quick_search(args.topic) #, pdf_content)
+    # else:
+    pi_agent.coordinate(args.topic)  # Remove the pdf_content argument
 
 if __name__ == "__main__":
     main()

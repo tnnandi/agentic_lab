@@ -128,12 +128,31 @@ def process_pdfs(pdf_paths):
         return ""
     
     pdf_contents = []
-    for pdf_path in pdf_paths:
-        if os.path.exists(pdf_path):
-            content = extract_pdf_text(pdf_path)
-            pdf_contents.append(content)
-        else:
-            print(f"Warning: PDF file not found: {pdf_path}")
+    # for pdf_path in pdf_paths:
+    #     if os.path.exists(pdf_path):
+    #         content = extract_pdf_text(pdf_path)
+    #         pdf_contents.append(content)
+    #     else:
+    #         print(f"Warning: PDF file not found: {pdf_path}")
+
+    def iter_pdf_files(paths):
+        for path in paths:
+            if not os.path.exists(path):
+                print(f"Warning: PDF file not found: {path}")
+                continue
+            if os.path.isdir(path):
+                for root, _, files in os.walk(path):
+                    for filename in sorted(files):
+                        if filename.lower().endswith('.pdf'):
+                            yield os.path.join(root, filename)
+            else:
+                yield path
+
+    for pdf_path in iter_pdf_files(pdf_paths):
+        content = extract_pdf_text(pdf_path)
+        pdf_contents.append(content)
+
+
     
     if not pdf_contents:
         return ""
@@ -148,6 +167,7 @@ def process_pdfs(pdf_paths):
     )
     
     return formatted_pdfs
+
 
 
 def process_links(link_paths):
