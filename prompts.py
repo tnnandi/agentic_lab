@@ -189,6 +189,24 @@ def get_code_improve_prompt(code, feedback):
 
 
 
+
+def get_execution_failure_reasoning_prompt(code, stdout, stderr):
+    return (
+        "You are an expert Python debugging assistant with knowledge of bioinformatics pipelines. Analyze the failed execution below, identify the most likely root causes, "
+        "and propose concrete fixes that can be attempted next.\n\n"
+        "--- Code ---\n"
+        f"{code}\n\n"
+        "--- Standard Output ---\n"
+        f"{stdout if stdout else 'N/A'}\n\n"
+        "--- Standard Error ---\n"
+        f"{stderr if stderr else 'N/A'}\n\n"
+        "Provide your response with the following structure:\n"
+        "1. Root Cause Analysis: <succinct explanation>\n"
+        "2. Recommended Fixes: <numbered list of actionable steps>\n"
+        "3. Verification: <how to confirm the issue is resolved>\n"
+        "Return only the above, without any internal reasoning or markdown fences."
+    )
+
 def get_code_review_failed_prompt(code, execution_result):
     return (
         f"The following code failed to execute:\n\n{code}\n\n"

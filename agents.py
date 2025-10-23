@@ -87,7 +87,7 @@ class PrincipalInvestigatorAgent:
         """
         if self.quick_search:
             print("Shortcut mode activated: Directly searching for real-time results using DuckDuckGo.\n")
-            results = utils.quick_duckduckgo_search(topic)
+            results = utils.quick_duckduckgo_search(topic) # DuckDuckGo search frequently hits rate limits nowadays, so remove it
             print(results)
             return results, None, True
 
@@ -103,6 +103,7 @@ class PrincipalInvestigatorAgent:
                     sources = self.browsing_agent.browse(topic, self.pdf_content, self.link_content, self.files_dir_content)
                     if self.verbose:
                         print("PI: Browsing Agent provided the following sources:")
+                        # set_trace()
                         print(sources[:1000])
                         print("------------------------------------")
 
@@ -336,7 +337,7 @@ class PrincipalInvestigatorAgent:
         return code, user_satisfied
 
 
-# Browsing Agent
+# Browsing Agent (for gathering information from the web, files referred to, HF notebooks etc)
 # currently does not fetch real time info (need to do it)
 class BrowsingAgent_Old:
     def browse(self, topic):
@@ -351,7 +352,7 @@ class BrowsingAgent:
         self.links = [] # Initialize links attribute
 
     def browse(self, topic, pdf_content="", link_content="", files_dir_content=""):
-        print(f"********* Browsing Agent: Gathering sources for topic '{topic}'")
+        print(f"********* Browsing Agent: Gathering information for topic '{topic}' from source links, pdfs, directories, huggingface notebooks etc")
 
         results = {
             # "PubMed": self.search_pubmed(topic),
@@ -770,7 +771,7 @@ class BrowsingAgent:
             return f"\n[DuckDuckGo Search]\n{url}\nCould not fetch DuckDuckGo content.\n"
 
 
-# Research Agent
+# Research Agent (only for drafting and improving research reports)
 class ResearchAgent:
     def __init__(self, mode, verbose=True):
         self.mode = mode
@@ -1272,6 +1273,21 @@ class CodeExecutorAgent:
                     if result.stderr:
                         print("\n=== Standard Error ===")
                         print(result.stderr)
+
+                    llm_reasoning = ""
+                    try:
+                        analysis_prompt = prompts.get_execution_failure_reasoning_prompt(
+                            cleaned_code, result.stdout, result.stderr
+                        )
+                        print("\n" + "="*60)
+                        print(" LLM ANALYSIS OF EXECUTION FAILURE")
+                        print("="*60)
+                        llm_reasoning = query_llm(analysis_prompt, temperature=LLM_CONFIG["temperature"]["coding"]).strip()
+                        print(llm_reasoning)
+                        print("="*60)
+                    except Exception as analysis_error:
+                        print(f"Failed to obtain LLM reasoning: {analysis_error}")
+                        llm_reasoning = ""
                     
                     # Ask for user feedback after detecting error in output
                     print("\n" + "="*60)
@@ -1288,10 +1304,12 @@ class CodeExecutorAgent:
                     print(f"Error summary: {error_summary}")
                     user_feedback = input("The code ran but produced errors. Please provide feedback about what might be causing these errors and how to fix them: ").strip()
                     
+                    response = f"Execution failed (error in output):\n{error_summary}"
+                    if llm_reasoning:
+                        response += f"\n\nLLM analysis:\n{llm_reasoning}"
                     if user_feedback:
-                        return f"Execution failed (error in output):\n{error_summary}\n\nUser feedback: {user_feedback}"
-                    else:
-                        return f"Execution failed (error in output):\n{error_summary}"
+                        response += f"\n\nUser feedback: {user_feedback}"
+                    return response
                 else:
                     print("Execution succeeded:")
                     if result.stdout:
@@ -1300,6 +1318,21 @@ class CodeExecutorAgent:
             else:
                 print("Execution failed:")
                 print(result.stderr)
+
+                llm_reasoning = ""
+                try:
+                    analysis_prompt = prompts.get_execution_failure_reasoning_prompt(
+                        cleaned_code, result.stdout, result.stderr
+                    )
+                    print("\n" + "="*60)
+                    print(" LLM ANALYSIS OF EXECUTION FAILURE")
+                    print("="*60)
+                    llm_reasoning = query_llm(analysis_prompt, temperature=LLM_CONFIG["temperature"]["coding"]).strip()
+                    print(llm_reasoning)
+                    print("="*60)
+                except Exception as analysis_error:
+                    print(f"Failed to obtain LLM reasoning: {analysis_error}")
+                    llm_reasoning = ""
                 
                 # Ask for user feedback after any failure
                 print("\n" + "="*60)
@@ -1308,14 +1341,31 @@ class CodeExecutorAgent:
                 print(f"Error: {result.stderr}")
                 user_feedback = input("Please provide feedback about this execution error. Consider what might be causing it and how to fix it: ").strip()
                 
+                response = f"Execution failed:\n{result.stderr}"
+                if llm_reasoning:
+                    response += f"\n\nLLM analysis:\n{llm_reasoning}"
                 if user_feedback:
-                    return f"Execution failed:\n{result.stderr}\n\nUser feedback: {user_feedback}"
-                else:
-                    return f"Execution failed:\n{result.stderr}"
+                    response += f"\n\nUser feedback: {user_feedback}"
+                return response
                     
         except Exception as e:
             print("Execution failed with exception:")
             print(str(e))
+
+            llm_reasoning = ""
+            try:
+                analysis_prompt = prompts.get_execution_failure_reasoning_prompt(
+                    cleaned_code if 'cleaned_code' in locals() else "", "", str(e)
+                )
+                print("\n" + "="*60)
+                print(" LLM ANALYSIS OF EXECUTION EXCEPTION")
+                print("="*60)
+                llm_reasoning = query_llm(analysis_prompt, temperature=LLM_CONFIG["temperature"]["coding"]).strip()
+                print(llm_reasoning)
+                print("="*60)
+            except Exception as analysis_error:
+                print(f"Failed to obtain LLM reasoning: {analysis_error}")
+                llm_reasoning = ""
             
             # Ask for user feedback after any exception
             print("\n" + "="*60)
@@ -1324,10 +1374,12 @@ class CodeExecutorAgent:
             print(f"Exception: {str(e)}")
             user_feedback = input("Please provide feedback about this exception. Consider what might be causing it and how to fix it: ").strip()
             
+            response = f"Execution failed with exception:\n{str(e)}"
+            if llm_reasoning:
+                response += f"\n\nLLM analysis:\n{llm_reasoning}"
             if user_feedback:
-                return f"Execution failed with exception:\n{str(e)}\n\nUser feedback: {user_feedback}"
-            else:
-                return f"Execution failed with exception:\n{str(e)}"
+                response += f"\n\nUser feedback: {user_feedback}"
+            return response
 
     # def extract_code(self, text):
     #     """
