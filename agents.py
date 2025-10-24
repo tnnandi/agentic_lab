@@ -269,6 +269,7 @@ class PrincipalInvestigatorAgent:
         code = initial_code
         iteration = 0
         user_satisfied = False
+        failure_attempts_since_user_prompt = 0
         
         print(f"\n Starting code iteration loop (max {max_code_iterations} iterations) ...")
         
@@ -284,6 +285,7 @@ class PrincipalInvestigatorAgent:
             # Check if execution was successful
             if "failed" not in execution_result.lower() and "User declined" not in execution_result:
                 print("Code executed successfully!")
+                failure_attempts_since_user_prompt = 0
                 
                 # Step 2: Review the successful execution
                 print("\n CodeReviewerAgent: Reviewing successful execution...")
@@ -310,18 +312,31 @@ class PrincipalInvestigatorAgent:
                 print("!!!! Code execution failed or was declined. !!!!")
                 print(f"Error: {execution_result[:200]}...")
                 
+                executor_feedback = execution_result.strip()
+                print("\n--- Code Executor Agent Feedback ---")
+                print(executor_feedback if len(executor_feedback) <= 1200 else executor_feedback[:1200] + "\n... (truncated)")
+                print("------------------------------------")
+                
                 # Step 3: Review the failed execution
                 print("\n CodeReviewerAgent: Reviewing failed execution...")
                 review_feedback = self.code_reviewer_agent.review_code(code, execution_result)
+
+                combined_sections = [
+                    f"Code Executor Feedback:\n{executor_feedback}",
+                    f"Code Reviewer Agent Feedback:\n{review_feedback}",
+                ]
+
+                max_failure_attempts_since_user_prompt = 20
+                failure_attempts_since_user_prompt += 1
+                if failure_attempts_since_user_prompt >= max_failure_attempts_since_user_prompt:
+                    additional_guidance = input(
+                        f"\nThe code is still failing after {max_failure_attempts_since_user_prompt} attempts. Please provide additional guidance (press Enter to skip): "
+                    ).strip()
+                    failure_attempts_since_user_prompt = 0
+                    if additional_guidance:
+                        combined_sections.append(f"User Guidance:\n{additional_guidance}")
                 
-                # Extract user feedback if available
-                user_feedback_match = re.search(r"Feedback: (.*)", execution_result)
-                user_feedback = user_feedback_match.group(1).strip() if user_feedback_match else ""
-                
-                # Combine feedback
-                combined_feedback = review_feedback
-                if user_feedback:
-                    combined_feedback += f"\n\nAdditional user feedback:\n{user_feedback}"
+                combined_feedback = "\n\n".join(combined_sections)
                 
                 print(f"\n Combined Feedback:")
                 print(combined_feedback[:500] + "..." if len(combined_feedback) > 500 else combined_feedback)
@@ -849,6 +864,10 @@ class CodeWriterAgent:
     def improve_code(self, code, feedback):
         if self.verbose:
             print("********** Code Writer Agent: improving code based on feedback")
+            print("\n----- Feedback received for code improvements -----")
+            preview = feedback if len(feedback) <= 1000 else feedback[:1000] + "\n... (truncated)"
+            print(preview)
+            print("--------------------------------------------------\n")
         prompt = prompts.get_code_improve_prompt(code, feedback)
         response = query_llm(prompt, temperature=LLM_CONFIG["temperature"]["coding"])
         return utils.extract_code_only(response)
@@ -1158,6 +1177,8 @@ class CodeExecutorAgent:
                 return f"Execution failed: No valid Python code detected. User feedback: {user_feedback}"
             return "Execution failed: No valid Python code detected."
 
+        executed_code = cleaned_code
+
         # print extracted code and ask for user confirmation
         print("\n========= Extracted code ========= \n")
         print(" *********** Code starts here (no non-code elements should be below this) ***********")
@@ -1277,7 +1298,7 @@ class CodeExecutorAgent:
                     llm_reasoning = ""
                     try:
                         analysis_prompt = prompts.get_execution_failure_reasoning_prompt(
-                            cleaned_code, result.stdout, result.stderr
+                            executed_code, result.stdout, result.stderr
                         )
                         print("\n" + "="*60)
                         print(" LLM ANALYSIS OF EXECUTION FAILURE")
@@ -1302,14 +1323,11 @@ class CodeExecutorAgent:
                         error_summary += f"Logging errors detected in stderr\n"
                     
                     print(f"Error summary: {error_summary}")
-                    user_feedback = input("The code ran but produced errors. Please provide feedback about what might be causing these errors and how to fix them: ").strip()
-                    
-                    response = f"Execution failed (error in output):\n{error_summary}"
+                    response_parts = [f"Execution failed (error in output):\n{error_summary.strip()}"]
+                    response_parts.append("User feedback: No feedback collected for this failure.")
                     if llm_reasoning:
-                        response += f"\n\nLLM analysis:\n{llm_reasoning}"
-                    if user_feedback:
-                        response += f"\n\nUser feedback: {user_feedback}"
-                    return response
+                        response_parts.append(f"Code Executor Feedback:\n{llm_reasoning}")
+                    return "\n\n".join(response_parts)
                 else:
                     print("Execution succeeded:")
                     if result.stdout:
@@ -1322,7 +1340,7 @@ class CodeExecutorAgent:
                 llm_reasoning = ""
                 try:
                     analysis_prompt = prompts.get_execution_failure_reasoning_prompt(
-                        cleaned_code, result.stdout, result.stderr
+                        executed_code, result.stdout, result.stderr
                     )
                     print("\n" + "="*60)
                     print(" LLM ANALYSIS OF EXECUTION FAILURE")
@@ -1334,19 +1352,11 @@ class CodeExecutorAgent:
                     print(f"Failed to obtain LLM reasoning: {analysis_error}")
                     llm_reasoning = ""
                 
-                # Ask for user feedback after any failure
-                print("\n" + "="*60)
-                print(" EXECUTION FAILED - USER FEEDBACK REQUESTED")
-                print("="*60)
-                print(f"Error: {result.stderr}")
-                user_feedback = input("Please provide feedback about this execution error. Consider what might be causing it and how to fix it: ").strip()
-                
-                response = f"Execution failed:\n{result.stderr}"
+                response_parts = [f"Execution failed:\n{result.stderr}"]
+                response_parts.append("User feedback: No feedback collected for this failure.")
                 if llm_reasoning:
-                    response += f"\n\nLLM analysis:\n{llm_reasoning}"
-                if user_feedback:
-                    response += f"\n\nUser feedback: {user_feedback}"
-                return response
+                    response_parts.append(f"Code Executor Feedback:\n{llm_reasoning}")
+                return "\n\n".join(response_parts)
                     
         except Exception as e:
             print("Execution failed with exception:")
@@ -1355,7 +1365,7 @@ class CodeExecutorAgent:
             llm_reasoning = ""
             try:
                 analysis_prompt = prompts.get_execution_failure_reasoning_prompt(
-                    cleaned_code if 'cleaned_code' in locals() else "", "", str(e)
+                    executed_code if 'executed_code' in locals() else "", "", str(e)
                 )
                 print("\n" + "="*60)
                 print(" LLM ANALYSIS OF EXECUTION EXCEPTION")
@@ -1367,19 +1377,11 @@ class CodeExecutorAgent:
                 print(f"Failed to obtain LLM reasoning: {analysis_error}")
                 llm_reasoning = ""
             
-            # Ask for user feedback after any exception
-            print("\n" + "="*60)
-            print("EXECUTION FAILED WITH EXCEPTION - USER FEEDBACK REQUESTED")
-            print("="*60)
-            print(f"Exception: {str(e)}")
-            user_feedback = input("Please provide feedback about this exception. Consider what might be causing it and how to fix it: ").strip()
-            
-            response = f"Execution failed with exception:\n{str(e)}"
+            response_parts = [f"Execution failed with exception:\n{str(e)}"]
+            response_parts.append("User feedback: No feedback collected for this failure.")
             if llm_reasoning:
-                response += f"\n\nLLM analysis:\n{llm_reasoning}"
-            if user_feedback:
-                response += f"\n\nUser feedback: {user_feedback}"
-            return response
+                response_parts.append(f"Code Executor Feedback:\n{llm_reasoning}")
+            return "\n\n".join(response_parts)
 
     # def extract_code(self, text):
     #     """
